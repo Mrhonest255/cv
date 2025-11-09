@@ -69,6 +69,7 @@ export interface Resume {
   version: number;
   createdAt: string;
   updatedAt: string;
+  template?: "classic" | "modern" | "compact" | "professional" | "ordered"; // UI template for preview/export
   personalInfo: PersonalInfo;
   summary: string;
   experience: Experience[];

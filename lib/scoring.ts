@@ -74,40 +74,32 @@ export function calculateJobMatch(resume: Resume, jobDescription: string): JobMa
   const resumeText = resumeToText(resume);
   const resumeTokens = tokenize(resumeText);
   const jobTokens = tokenize(jobDescription);
-  
+
   const resumeFreq = getTermFrequency(resumeTokens);
   const jobFreq = getTermFrequency(jobTokens);
-  
+
   const resumeKeywords = extractKeywords(resumeFreq, 1);
-  const jobKeywords = extractKeywords(jobFreq, 2);
-  
-  // Calculate overlap
-  const matchedKeywords = jobKeywords.filter(keyword => 
-    resumeKeywords.includes(keyword)
-  );
-  
-  const missingKeywords = jobKeywords.filter(keyword => 
-    !resumeKeywords.includes(keyword)
-  );
-  
+  const jobKeywords = extractKeywords(jobFreq, 1); // threshold 1 to be inclusive
+
+  // Overlap
+  const matchedKeywords = jobKeywords.filter(k => resumeKeywords.includes(k));
+  const missingKeywords = jobKeywords.filter(k => !resumeKeywords.includes(k));
+
   // Weighted scoring
   const skillsMatch = calculateSkillsMatch(resume.skills.map(s => s.name), jobTokens);
   const experienceMatch = calculateExperienceMatch(resume.experience, jobTokens);
-  
-  // Combined score (weighted)
   const keywordScore = (matchedKeywords.length / Math.max(jobKeywords.length, 1)) * 40;
   const skillScore = skillsMatch * 35;
   const expScore = experienceMatch * 25;
-  
   const totalScore = Math.min(100, Math.round(keywordScore + skillScore + expScore));
-  
-  // Generate suggestions
+
+  // Suggestions
   const suggestions = generateSuggestions(totalScore, missingKeywords);
-  
+
   return {
     score: totalScore,
-    missingKeywords: missingKeywords.slice(0, 15), // Top 15 missing
-    matchedKeywords: matchedKeywords.slice(0, 15), // Top 15 matched
+    matchedKeywords: matchedKeywords.slice(0, 15),
+    missingKeywords: missingKeywords.slice(0, 15),
     suggestions,
   };
 }

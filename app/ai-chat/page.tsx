@@ -14,16 +14,39 @@ interface Message {
 
 export default function AIChatPage() {
   const router = useRouter();
-  const { currentResume, setCurrentResume } = useAppStore();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Habari! 👋 Niko hapa kukusaidia kutengeneza CV yako. Je, tuanze na jina lako kamili?",
-    },
-  ]);
+  const { currentResume, setCurrentResume, createNewResume, loadAllResumes } = useAppStore();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const STORAGE_KEY = 'jobkit_chat_history_v1';
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load resume & chat history on mount
+  useEffect(() => {
+    (async () => {
+      if (!currentResume) {
+        await loadAllResumes();
+        if (!useAppStore.getState().currentResume) {
+          createNewResume();
+        }
+      }
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Message[];
+          if (Array.isArray(parsed) && parsed.length) {
+            setMessages(parsed);
+            return;
+          }
+        }
+      } catch {}
+      // fallback initial greeting
+      setMessages([{
+        role: 'assistant',
+        content: 'Habari! 👋 Niko hapa kukusaidia kutengeneza CV yako. Je, tuanze na jina lako kamili?',
+      }]);
+    })();
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -36,25 +59,43 @@ export default function AIChatPage() {
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
+    // Ensure we have a resume to work with
+    if (!currentResume) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Samahani, CV haijatengenezwa. Tafadhali nenda kwenye CV Builder kwanza.",
+        },
+      ]);
+      return;
+    }
+
     const userMessage: Message = { role: "user", content: input.trim() };
-    setMessages((prev) => [...prev, userMessage]);
+  setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
 
     try {
       // Create context summary from current resume
-      const resumeData = currentResume!;
+      const resumeData = currentResume;
       const context = `Personal: ${resumeData.personalInfo.fullName || 'N/A'}, ${resumeData.personalInfo.email || 'N/A'}
 Experience: ${resumeData.experience.length} entries
 Education: ${resumeData.education.length} entries
 Skills: ${resumeData.skills.length} skills
 Summary: ${resumeData.summary || 'N/A'}`;
 
+      // If this is the first user turn, send only the user message to avoid
+      // history starting with assistant greeting on the server
+      const outboundMessages = messages.some(m => m.role === "user")
+        ? [...messages, userMessage]
+        : [userMessage];
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [...messages, userMessage],
+          messages: outboundMessages,
           context,
         }),
       });
@@ -63,7 +104,12 @@ Summary: ${resumeData.summary || 'N/A'}`;
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const data = await response.json();
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch (e) {
+        throw new Error('Invalid JSON response');
+      }
       
       setMessages((prev) => [
         ...prev,
@@ -73,7 +119,7 @@ Summary: ${resumeData.summary || 'N/A'}`;
       // Simple parsing to update resume (basic heuristic)
       // In production, you'd use structured extraction
       const text = userMessage.content.toLowerCase();
-      const resume = currentResume!;
+      const resume = currentResume;
       
       // Detect name
       if (text.includes("jina") || text.includes("name") || messages.length <= 2) {
@@ -108,17 +154,19 @@ Summary: ${resumeData.summary || 'N/A'}`;
         }
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chat error:", error);
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "Samahani, kuna tatizo. Tafadhali jaribu tena.",
+          content: `Kuna tatizo: ${error.message || 'jaribu tena.'}`,
         },
       ]);
     } finally {
       setLoading(false);
+      // persist after every turn
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); } catch {}
     }
   };
 
@@ -147,6 +195,19 @@ Summary: ${resumeData.summary || 'N/A'}`;
         >
           <FileText className="h-4 w-4" />
           Nenda CV Builder
+        </Button>
+        <Button
+          onClick={() => {
+            setMessages([{
+              role: 'assistant',
+              content: 'Tumeanza mazungumzo mapya. Taja jina lako kamili kuanza.',
+            }]);
+            try { localStorage.removeItem(STORAGE_KEY); } catch {}
+          }}
+          variant="outline"
+          className="gap-2"
+        >
+          Anza Upya
         </Button>
       </div>
 

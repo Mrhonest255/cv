@@ -37,6 +37,7 @@ const createEmptyResume = (): Resume => ({
   version: 1,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
+  template: 'classic',
   personalInfo: {
     fullName: '',
     email: '',
@@ -95,6 +96,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const updated = {
         ...currentResume,
         updatedAt: new Date().toISOString(),
+        version: (currentResume.version || 0) + 1,
       };
       await saveResume(updated);
       set({ currentResume: updated, isLoading: false });

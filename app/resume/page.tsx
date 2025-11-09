@@ -7,24 +7,38 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
-import { Plus, Trash2, Download, Save } from "lucide-react";
+import { Plus, Trash2, Download, Save, Eye } from "lucide-react";
+import dynamic from "next/dynamic";
+const ResumePreview = dynamic(() => import("@/components/preview/ResumePreview"), { ssr: false });
 import { generateResumePDF, downloadPDF } from "@/lib/pdf";
 import { generateResumeDOCX, downloadDOCX } from "@/lib/docx";
 import { generateFilename } from "@/lib/utils";
-import type { Experience, Education, Skill, Certification, Language } from "@/lib/types";
+import type { Experience, Education, Skill, Certification, Language, Resume } from "@/lib/types";
 
 export default function ResumePage() {
-  const { currentResume, setCurrentResume, saveCurrentResume, createNewResume, loadAllResumes } = useAppStore();
+  const { currentResume, setCurrentResume, saveCurrentResume, createNewResume, loadAllResumes, resumes } = useAppStore();
   const [autoSaveTimer, setAutoSaveTimer] = useState<NodeJS.Timeout | null>(null);
+  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     loadAllResumes();
     if (!currentResume) {
       createNewResume();
     }
+    const beforeUnload = () => { if (currentResume) saveCurrentResume(); };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
   }, []);
 
-  // Autosave every 5 seconds after changes
+  // If resumes exist and no current selected, pick the most recently updated
+  useEffect(() => {
+    if (!currentResume && Array.isArray(resumes) && resumes.length > 0) {
+      const latest = [...resumes].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+      if (latest) setCurrentResume(latest as Resume);
+    }
+  }, [resumes]);
+
+  // Autosave every 2 seconds after changes
   useEffect(() => {
     if (currentResume && autoSaveTimer) {
       clearTimeout(autoSaveTimer);
@@ -34,7 +48,7 @@ export default function ResumePage() {
       if (currentResume) {
         saveCurrentResume();
       }
-    }, 5000);
+    }, 2000);
     
     setAutoSaveTimer(timer);
     
@@ -51,7 +65,25 @@ export default function ResumePage() {
     );
   }
 
-  const handlePersonalInfoChange = (field: string, value: string) => {
+  const validateField = (field: string, value: string) => {
+    let error = "";
+    if (field === "email") {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (value && !emailRegex.test(value)) {
+        error = "Muundo wa barua pepe si sahihi.";
+      }
+    }
+    if (field === "phone") {
+      const phoneRegex = /^\+?[0-9\s-()]{10,}$/;
+      if (value && !phoneRegex.test(value)) {
+        error = "Nambari ya simu si sahihi.";
+      }
+    }
+    setFormErrors(prev => ({ ...prev, [field]: error }));
+  };
+
+  const handlePersonalInfoChange = (field: string, value:string) => {
+    validateField(field, value);
     setCurrentResume({
       ...currentResume,
       personalInfo: { ...currentResume.personalInfo, [field]: value },
@@ -226,7 +258,7 @@ export default function ResumePage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="container mx-auto px-4 py-8 max-w-6xl">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Tengeneza CV Yako</h1>
         <div className="flex gap-2">
@@ -244,9 +276,13 @@ export default function ResumePage() {
           </Button>
         </div>
       </div>
+      {/* Main form + preview grid */}
+      <div className="grid lg:grid-cols-3 gap-8 mb-8">
+        {/* Left: Form */}
+        <div className="lg:col-span-2 space-y-8">
 
-      {/* Personal Info Section */}
-      <div className="bg-card border rounded-lg p-6 mb-6">
+  {/* Personal Info Section */}
+      <div className="bg-card border rounded-lg p-6 mb-6 animate-fadeIn">
         <h2 className="text-xl font-semibold mb-4">Taarifa Binafsi</h2>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
@@ -263,16 +299,22 @@ export default function ResumePage() {
               type="email"
               value={currentResume.personalInfo.email}
               onChange={(e) => handlePersonalInfoChange("email", e.target.value)}
+              onBlur={(e) => validateField("email", e.target.value)}
               placeholder="email@example.com"
+              className={formErrors.email ? "border-destructive" : ""}
             />
+            {formErrors.email && <p className="text-sm text-destructive mt-1">{formErrors.email}</p>}
           </div>
           <div>
             <Label>Simu</Label>
             <Input
               value={currentResume.personalInfo.phone}
               onChange={(e) => handlePersonalInfoChange("phone", e.target.value)}
+              onBlur={(e) => validateField("phone", e.target.value)}
               placeholder="+255 XXX XXX XXX"
+              className={formErrors.phone ? "border-destructive" : ""}
             />
+            {formErrors.phone && <p className="text-sm text-destructive mt-1">{formErrors.phone}</p>}
           </div>
           <div>
             <Label>Mahali</Label>
@@ -317,7 +359,7 @@ export default function ResumePage() {
         </div>
       </div>
 
-      {/* Summary Section */}
+  {/* Summary Section */}
       <div className="bg-card border rounded-lg p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Muhtasari (Summary)</h2>
         <Textarea
@@ -328,7 +370,7 @@ export default function ResumePage() {
         />
       </div>
 
-      {/* Experience Section */}
+  {/* Experience Section */}
       <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Uzoefu wa Kazi</h2>
@@ -419,7 +461,7 @@ export default function ResumePage() {
         ))}
       </div>
 
-      {/* Education Section */}
+  {/* Education Section */}
       <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Elimu</h2>
@@ -499,7 +541,7 @@ export default function ResumePage() {
         ))}
       </div>
 
-      {/* Skills Section */}
+  {/* Skills Section */}
       <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Ujuzi (Skills)</h2>
@@ -545,7 +587,7 @@ export default function ResumePage() {
         </div>
       </div>
 
-      {/* Certifications */}
+  {/* Certifications */}
       <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Vyeti (Certifications)</h2>
@@ -592,7 +634,7 @@ export default function ResumePage() {
         ))}
       </div>
 
-      {/* Languages */}
+  {/* Languages */}
       <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Lugha (Languages)</h2>
@@ -619,7 +661,7 @@ export default function ResumePage() {
         </div>
       </div>
 
-      {/* Interests */}
+  {/* Interests */}
       <div className="bg-card border rounded-lg p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Maslahi (Interests)</h2>
         <Textarea
@@ -633,7 +675,7 @@ export default function ResumePage() {
         />
       </div>
 
-      {/* References */}
+  {/* References */}
       <div className="bg-card border rounded-lg p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Marejeo (References)</h2>
         <Textarea
@@ -644,7 +686,7 @@ export default function ResumePage() {
         />
       </div>
 
-      <div className="flex justify-center gap-4 mt-8">
+          <div className="flex justify-center gap-4 mt-8">
         <Button onClick={handleSave} size="lg">
           <Save className="h-5 w-5 mr-2" />
           Hifadhi CV
@@ -653,6 +695,33 @@ export default function ResumePage() {
           <Download className="h-5 w-5 mr-2" />
           Pakua PDF
         </Button>
+          </div>
+        </div>
+        {/* Right: Preview */}
+        <div className="space-y-4">
+          <div className="bg-card border rounded-lg p-4 sticky top-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold flex items-center gap-2"><Eye className="h-4 w-4"/>Live Preview</h2>
+            </div>
+            <div className="mb-4">
+              <Label>Aina ya Template</Label>
+              <select
+                value={currentResume.template}
+                onChange={(e)=>setCurrentResume({...currentResume, template: e.target.value as Resume['template']})}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
+              >
+                <option value="classic">Classic</option>
+                <option value="modern">Modern</option>
+                <option value="compact">Compact</option>
+                <option value="professional">Professional</option>
+                <option value="ordered">Ordered</option>
+              </select>
+            </div>
+            <div className="h-[520px] overflow-y-auto custom-scrollbar">
+              <ResumePreview resume={currentResume as Resume} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

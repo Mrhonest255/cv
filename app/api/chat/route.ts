@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { NextRequest, NextResponse } from 'next/server';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -25,6 +25,34 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+// Generation config based on Flutter reference
+const generationConfig = {
+  temperature: 0.7,
+  topK: 40,
+  topP: 0.95,
+  maxOutputTokens: 1024,
+};
+
+// Safety settings
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+];
+
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
   
@@ -39,8 +67,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid messages format' }, { status: 400 });
     }
 
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('GEMINI_API_KEY is not set');
+      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+    }
+
+    // Use gemini-2.5-flash as per Flutter reference (fastest, cheapest)
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
+      generationConfig,
+      safetySettings,
       systemInstruction: `You are a professional CV/Resume building assistant. Your role is to help users create comprehensive, professional CVs through conversation.
 
 IMPORTANT GUIDELINES:
@@ -57,14 +93,28 @@ IMPORTANT GUIDELINES:
 Current CV context: ${context || 'Empty - starting fresh'}`,
     });
 
+    // Build chat history ensuring it starts with a user message
+    const roles = Array.isArray(messages) ? messages.map((m: any) => m.role) : [];
+    const firstUserIndex = roles.findIndex((r: string) => r === 'user');
+    const historySource = firstUserIndex === -1 ? [] : messages.slice(firstUserIndex, -1);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[chat] incoming roles:', roles);
+      console.log('[chat] firstUserIndex:', firstUserIndex);
+      console.log('[chat] history roles:', historySource.map((m: any) => m.role));
+    }
+
     const chat = model.startChat({
-      history: messages.slice(0, -1).map((msg: any) => ({
+      history: historySource.map((msg: any) => ({
         role: msg.role === 'user' ? 'user' : 'model',
         parts: [{ text: msg.content }],
       })),
     });
 
+    // Send the last message
     const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role !== 'user') {
+      return NextResponse.json({ error: 'Last message must be from user' }, { status: 400 });
+    }
     const result = await chat.sendMessage(lastMessage.content);
     const response = result.response;
     const text = response.text();
@@ -75,10 +125,22 @@ Current CV context: ${context || 'Empty - starting fresh'}`,
     });
 
   } catch (error: any) {
-    console.error('Chat API error:', error);
+    console.error('Chat API error details:', {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name
+    });
+    
+    // More detailed error response
+    const errorMessage = error?.message || 'Failed to process chat';
+    const statusCode = error?.status || 500;
+    
     return NextResponse.json(
-      { error: error?.message || 'Failed to process chat' },
-      { status: 500 }
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+      },
+      { status: statusCode }
     );
   }
 }
