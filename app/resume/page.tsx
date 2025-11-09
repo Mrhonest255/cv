@@ -715,6 +715,7 @@ export default function ResumePage() {
                 <option value="compact">Compact</option>
                 <option value="professional">Professional</option>
                 <option value="ordered">Ordered</option>
+                <option value="elegant">Elegant</option>
               </select>
             </div>
             <div className="h-[520px] overflow-y-auto custom-scrollbar">

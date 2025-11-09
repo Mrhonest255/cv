@@ -7,17 +7,26 @@ export async function generateResumePDF(
   includeWatermark: boolean = false
 ): Promise<Blob> {
   const pdfDoc = await PDFDocument.create();
+  // Preload fonts
   const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
   const timesRomanBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  
-  const page = pdfDoc.addPage([595.276, 841.890]); // A4
-  const { width, height } = page.getSize();
-  
+
+  // Page state helpers
+  let page = pdfDoc.addPage([595.276, 841.890]); // A4
+  let { width, height } = page.getSize();
   let y = height - 50;
   const margin = 50;
   const lineHeight = 14;
+  const ensureSpace = (minSpace: number = 100) => {
+    if (y < minSpace) {
+      page = pdfDoc.addPage([595.276, 841.890]);
+      ({ width, height } = page.getSize());
+      y = height - 50;
+      // draw carry-over header line if needed later
+    }
+  };
   
   // Helper function to draw text
   const drawText = (text: string, x: number, yPos: number, options: any = {}) => {
@@ -95,20 +104,13 @@ export async function generateResumePDF(
         y -= lineHeight;
       });
       y -= 8;
-      
-      if (y < 100) {
-        const newPage = pdfDoc.addPage([595.276, 841.890]);
-        y = height - 50;
-      }
+      ensureSpace(120);
     }
   }
   
   // Skills
   if (resume.skills.length > 0) {
-    if (y < 150) {
-      const newPage = pdfDoc.addPage([595.276, 841.890]);
-      y = height - 50;
-    }
+    ensureSpace(150);
     
     drawText('SKILLS', margin, y, { size: 12, bold: true });
     y -= lineHeight + 2;
@@ -129,10 +131,7 @@ export async function generateResumePDF(
   
   // Education
   if (resume.education.length > 0) {
-    if (y < 100) {
-      const newPage = pdfDoc.addPage([595.276, 841.890]);
-      y = height - 50;
-    }
+    ensureSpace(120);
     
     drawText('EDUCATION', margin, y, { size: 12, bold: true });
     y -= lineHeight + 4;
