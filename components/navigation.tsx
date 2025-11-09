@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Mail, Target, Home, Sparkles } from "lucide-react";
+import { FileText, Mail, Target, Home, Sparkles, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "@/components/theme-toggle";
 
@@ -11,6 +11,7 @@ const navItems = [
   { href: "/resume", label: "CV", icon: FileText },
   { href: "/letter", label: "Barua", icon: Mail },
   { href: "/match", label: "Linganisha", icon: Target },
+  { href: "/ai-chat", label: "AI Chat", icon: MessageSquare },
 ];
 
 export default function Navigation() {
