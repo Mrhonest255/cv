@@ -1,0 +1,51 @@
+### Node & Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+### Testing / Coverage
+coverage/
+
+### Next.js build output
+.next/
+out/
+build/
+
+### Environment (never commit secrets)
+.env.local
+.env.*.local
+.env
+
+### Vercel platform files
+.vercel
+
+### TypeScript cache / generated
+*.tsbuildinfo
+next-env.d.ts
+
+### OS & Misc
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.pem
+
+### Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+### Editor configs
+.vscode/
+
+### PWA generated assets (optional ignore)
+public/sw.js
+public/workbox-*.js
+public/worker-*.js
+public/sw.js.map
+public/workbox-*.js.map
+public/worker-*.js.map
+
+### Merge conflict leftovers
+*.orig
+*.rej
