@@ -205,7 +205,8 @@ export async function generateCoverLetterPDF(
   y -= lineHeight;
   drawText(`${personalInfo.email} | ${personalInfo.phone} | ${personalInfo.location}`, margin, y, { size: 9 });
   y -= lineHeight * 1.5;
-  page.drawLine({ start: { x: margin, y }, end: { x: width - margin }, thickness: 1, color: rgb(0.75,0.75,0.75) });
+  // Separator line under header (add missing y in end point)
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: rgb(0.75,0.75,0.75) });
   y -= lineHeight * 1.2;
   
   // Date
@@ -257,7 +258,8 @@ export async function generateCoverLetterPDF(
   drawText(personalInfo.fullName, margin, y, { size: 11, bold: true });
   y -= lineHeight * 2;
   // Footer line and repeated contact info for easy reference
-  page.drawLine({ start: { x: margin, y }, end: { x: width - margin }, thickness: 1, color: rgb(0.75,0.75,0.75) });
+  // Footer separator (add missing y in end point)
+  page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: rgb(0.75,0.75,0.75) });
   y -= lineHeight;
   drawText(`${personalInfo.email} | ${personalInfo.phone}`, margin, y, { size: 9, color: rgb(0.2,0.2,0.2) });
   
