@@ -9,6 +9,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["InterVariable", "Inter", "system-ui", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -49,6 +52,33 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      boxShadow: {
+        glow: "0 0 0 1px rgba(99,102,241,.4), 0 0 20px -5px rgba(99,102,241,.6)",
+        soft: "0 4px 24px -4px rgba(0,0,0,.1)",
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0', transform: 'translateY(4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' }
+        },
+        scaleUp: {
+          '0%': { opacity: '0', transform: 'scale(.96)' },
+          '100%': { opacity: '1', transform: 'scale(1)' }
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '0% 50%' },
+          '100%': { backgroundPosition: '200% 50%' }
+        }
+      },
+      animation: {
+        fadeIn: 'fadeIn .4s ease-out',
+        scaleUp: 'scaleUp .4s cubic-bezier(.16,.84,.44,1)',
+        shimmer: 'shimmer 3s linear infinite'
+      },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(circle at 30% 20%, var(--tw-gradient-stops))',
+        'hero-glow': 'radial-gradient(circle at center, rgba(99,102,241,0.25), transparent 60%)'
+      }
     },
   },
   plugins: [],

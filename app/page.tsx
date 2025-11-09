@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { FileText, Mail, Target, Home } from "lucide-react";
+import { FileText, Mail, Target } from "lucide-react";
 
 export default function HomePage() {
   return (
-    <div className="container mx-auto px-4 py-16">
+    <div className="container mx-auto px-4 py-16 animate-fadeIn">
       <div className="max-w-4xl mx-auto text-center">
-        <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <h1 className="text-5xl font-extrabold mb-6 gradient-title tracking-tight">
           JobKit Pro
         </h1>
         <p className="text-xl text-muted-foreground mb-12">
@@ -14,7 +14,7 @@ export default function HomePage() {
 
         <div className="grid md:grid-cols-3 gap-6 mb-16">
           <Link href="/resume" className="group">
-            <div className="p-8 rounded-lg border-2 border-border hover:border-primary transition-all hover:shadow-lg bg-card">
+            <div className="p-8 rounded-xl border border-border hover:border-primary transition-all shadow-soft hover:shadow-glow bg-card">
               <FileText className="w-12 h-12 mx-auto mb-4 text-primary group-hover:scale-110 transition-transform" />
               <h2 className="text-2xl font-semibold mb-2">CV Builder</h2>
               <p className="text-muted-foreground">
@@ -24,7 +24,7 @@ export default function HomePage() {
           </Link>
 
           <Link href="/letter" className="group">
-            <div className="p-8 rounded-lg border-2 border-border hover:border-primary transition-all hover:shadow-lg bg-card">
+            <div className="p-8 rounded-xl border border-border hover:border-primary transition-all shadow-soft hover:shadow-glow bg-card">
               <Mail className="w-12 h-12 mx-auto mb-4 text-primary group-hover:scale-110 transition-transform" />
               <h2 className="text-2xl font-semibold mb-2">Cover Letter Studio</h2>
               <p className="text-muted-foreground">
@@ -34,7 +34,7 @@ export default function HomePage() {
           </Link>
 
           <Link href="/match" className="group">
-            <div className="p-8 rounded-lg border-2 border-border hover:border-primary transition-all hover:shadow-lg bg-card">
+            <div className="p-8 rounded-xl border border-border hover:border-primary transition-all shadow-soft hover:shadow-glow bg-card">
               <Target className="w-12 h-12 mx-auto mb-4 text-primary group-hover:scale-110 transition-transform" />
               <h2 className="text-2xl font-semibold mb-2">Smart Job Match</h2>
               <p className="text-muted-foreground">
@@ -44,7 +44,7 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-8 border border-blue-200 dark:border-blue-800">
+        <div className="bg-blue-50 dark:bg-blue-950 rounded-xl p-8 border border-blue-200 dark:border-blue-800 shadow-soft">
           <h3 className="text-xl font-semibold mb-4">✨ Vipengele Muhimu</h3>
           <ul className="grid md:grid-cols-2 gap-3 text-left max-w-2xl mx-auto">
             <li className="flex items-center gap-2">

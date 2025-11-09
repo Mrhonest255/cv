@@ -61,3 +61,38 @@ body {
     text-wrap: balance;
   }
 }
+
+/* Cards */
+.card {
+  @apply bg-card border border-border rounded-xl shadow-soft transition-all;
+}
+.card:hover {
+  @apply shadow-glow;
+}
+
+/* Buttons */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors outline-none;
+}
+.btn-primary {
+  @apply bg-primary text-primary-foreground hover:opacity-90;
+}
+.btn-ghost {
+  @apply hover:bg-accent text-foreground/80;
+}
+
+/* Fancy gradient text */
+.gradient-title {
+  background: linear-gradient(90deg, #2563eb 0%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Subtle container max width */
+.container-narrow { max-width: 64rem; }
+
+/* Glass */
+.glass {
+  background: color-mix(in oklab, rgb(255 255 255 / 80%), transparent);
+  backdrop-filter: blur(12px);
+}
