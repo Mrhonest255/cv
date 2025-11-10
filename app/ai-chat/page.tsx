@@ -3,12 +3,14 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Bot, User, Loader2, Sparkles, FileText, FileUp } from "lucide-react";
+import { Send, Bot, User, Loader2, Sparkles, FileText, FileUp, Download } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import type { Education, Experience, Resume } from "@/lib/types";
 import dynamic from "next/dynamic";
 const ResumePreview = dynamic(() => import("@/components/preview/ResumePreview"), { ssr: false });
+import { generateResumePDF, downloadPDF } from "@/lib/pdf";
+import { generateResumeDOCX, downloadDOCX } from "@/lib/docx";
 
 interface Message {
   role: "user" | "assistant";
@@ -23,6 +25,7 @@ export default function AIChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState<null | "pdf" | "docx">(null);
 
   // Load resume & chat history on mount
   useEffect(() => {
@@ -523,7 +526,56 @@ Summary: ${resumeData.summary || 'N/A'}`;
         {/* Live preview column */}
         <div className="space-y-4">
           <div className="bg-card border rounded-lg p-4 sticky top-6">
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><FileText className="h-4 w-4"/>Live CV Preview</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold flex items-center gap-2"><FileText className="h-4 w-4"/>Live CV Preview</h2>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  disabled={!compiledResume || !!downloading}
+                  onClick={async () => {
+                    if (!compiledResume) return;
+                    try {
+                      setDownloading("pdf");
+                      const blob = await generateResumePDF(compiledResume as Resume, {
+                        template: (compiledResume as Resume).template,
+                        layout: '1-column',
+                      });
+                      downloadPDF(blob, `${(compiledResume as Resume).personalInfo.fullName || 'Resume'}.pdf`);
+                    } finally {
+                      setDownloading(null);
+                    }
+                  }}
+                  aria-label="Pakua PDF"
+                >
+                  {downloading === "pdf" ? <Loader2 className="h-4 w-4 animate-spin"/> : <Download className="h-4 w-4"/>}
+                  <span className="hidden sm:inline">Download PDF</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  disabled={!compiledResume || !!downloading}
+                  onClick={async () => {
+                    if (!compiledResume) return;
+                    try {
+                      setDownloading("docx");
+                      const blob = await generateResumeDOCX(compiledResume as Resume, {
+                        template: (compiledResume as Resume).template,
+                      });
+                      downloadDOCX(blob, `${(compiledResume as Resume).personalInfo.fullName || 'Resume'}.docx`);
+                    } finally {
+                      setDownloading(null);
+                    }
+                  }}
+                  aria-label="Pakua DOCX"
+                >
+                  {downloading === "docx" ? <Loader2 className="h-4 w-4 animate-spin"/> : <Download className="h-4 w-4"/>}
+                  <span className="hidden sm:inline">Download DOCX</span>
+                </Button>
+              </div>
+            </div>
             <p className="text-xs text-muted-foreground mb-2">Inasasishwa moja kwa moja kutokana na majibu ya mazungumzo. Bonyeza "Jenga CV Kutoka Chat" kuhifadhi.</p>
             <div className="h-[520px] overflow-y-auto custom-scrollbar">
               {compiledResume ? <ResumePreview resume={compiledResume as Resume} /> : <p className="text-xs">Hakuna data bado...</p>}
