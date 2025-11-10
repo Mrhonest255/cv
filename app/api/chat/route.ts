@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { messages, context } = await req.json();
+  const { messages, context } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: 'Invalid messages format' }, { status: 400 });
@@ -71,28 +71,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
     // Initialize per request to ensure fresh key and avoid empty constructor
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
     // Use gemini-2.5-flash as per Flutter reference (fastest, cheapest)
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
-      generationConfig,
-      safetySettings,
-    });
-
-    // Build chat history ensuring it starts with a user message
-  const roles = Array.isArray(messages) ? messages.map((m: any) => m.role) : [];
-    const firstUserIndex = roles.findIndex((r: string) => r === 'user');
-  let historySource = firstUserIndex === -1 ? [] : messages.slice(firstUserIndex, -1);
-  // limit history to last 12 turns to avoid overlong prompts
-  if (historySource.length > 12) historySource = historySource.slice(-12);
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[chat] incoming roles:', roles);
-      console.log('[chat] firstUserIndex:', firstUserIndex);
-      console.log('[chat] history roles:', historySource.map((m: any) => m.role));
-    }
-
-    const systemInstruction = `You are a professional CV/Resume building assistant. Your role is to help users create comprehensive, professional CVs through conversation.
+    // Build system instruction text
+    const systemInstructionText = `You are a professional CV/Resume building assistant. Your role is to help users create comprehensive, professional CVs through conversation.
 
 IMPORTANT GUIDELINES:
 - Ask focused questions one at a time to extract CV information
@@ -107,8 +90,27 @@ IMPORTANT GUIDELINES:
 
 Current CV context: ${context || 'Empty - starting fresh'}`;
 
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig,
+      safetySettings,
+      // v1beta requires system_instruction to be a Content object (parts[])
+      systemInstruction: { parts: [{ text: systemInstructionText }] },
+    });
+
+    // Build chat history ensuring it starts with a user message
+  const roles = Array.isArray(messages) ? messages.map((m: any) => m.role) : [];
+    const firstUserIndex = roles.findIndex((r: string) => r === 'user');
+  let historySource = firstUserIndex === -1 ? [] : messages.slice(firstUserIndex, -1);
+  // limit history to last 12 turns to avoid overlong prompts
+  if (historySource.length > 12) historySource = historySource.slice(-12);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[chat] incoming roles:', roles);
+      console.log('[chat] firstUserIndex:', firstUserIndex);
+      console.log('[chat] history roles:', historySource.map((m: any) => m.role));
+    }
+
     const chat = model.startChat({
-      systemInstruction,
       history: historySource.map((msg: any) => ({
         role: msg.role === 'user' ? 'user' : 'model',
         parts: [{ text: msg.content }],
