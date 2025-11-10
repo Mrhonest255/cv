@@ -41,6 +41,17 @@ export default function RootLayout({
 })();`,
           }}
         />
+        {/* Init force-mobile class before paint if user enabled it */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(() => {
+  try {
+    const fm = localStorage.getItem('forceMobile');
+    if (fm === '1') document.documentElement.classList.add('force-mobile');
+  } catch {}
+})();`,
+          }}
+        />
       </head>
       <body className={`${inter.className} min-h-screen relative overflow-hidden text-slate-100 bg-animated-gradient`}>
         {/* Skip to content link for accessibility */}

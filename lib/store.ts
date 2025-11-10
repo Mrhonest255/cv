@@ -30,6 +30,10 @@ interface AppState {
   
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  // UI feature: force mobile layout
+  forceMobile: boolean;
+  setForceMobile: (v: boolean) => void;
+  toggleForceMobile: () => void;
 }
 
 const createEmptyResume = (): Resume => ({
@@ -178,4 +182,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
+  forceMobile: false,
+  setForceMobile: (v) => {
+    try { localStorage.setItem('forceMobile', v ? '1' : '0'); } catch {}
+    set({ forceMobile: v });
+  },
+  toggleForceMobile: () => {
+    const current = get().forceMobile;
+    const next = !current;
+    try { localStorage.setItem('forceMobile', next ? '1' : '0'); } catch {}
+    set({ forceMobile: next });
+  },
 }));

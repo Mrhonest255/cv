@@ -342,8 +342,9 @@ export default function ResumePage() {
   <div className="container mx-auto px-4 py-8 max-w-6xl">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
         <h1 className="text-2xl md:text-3xl font-bold">Tengeneza CV Yako</h1>
-        {/* Desktop actions */}
-        <div className="hidden sm:flex flex-wrap gap-2">
+        {/* Desktop actions (hidden if forceMobile enabled) */}
+        <div className="flex-wrap gap-2" data-desktop-actions>
+          {/* We will hide via inline style if forceMobile is on */}
           <Button onClick={handleSave} variant="outline" aria-label="Hifadhi CV">
             <Save className="h-4 w-4 mr-2" />
             Hifadhi
@@ -357,8 +358,8 @@ export default function ResumePage() {
             {exporting.docx ? 'Inatengeneza...' : 'DOCX'}
           </Button>
         </div>
-        {/* Mobile consolidated actions */}
-        <div className="sm:hidden">
+        {/* Mobile consolidated actions always visible; desktop actions are visually hidden when width large but mobile forced */}
+        <div className="sm:hidden mt-2" data-mobile-actions>
           <details className="relative">
             <summary className="list-none">
               <Button variant="outline" className="gap-2" aria-haspopup="true" aria-expanded="false">
