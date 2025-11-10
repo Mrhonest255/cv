@@ -56,6 +56,18 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1;
 }
 
+/* When force-mobile class is on <html>, simulate mobile by constraining width and stacking */
+.force-mobile body {
+  max-width: 480px;
+  margin: 0 auto;
+}
+.force-mobile [data-desktop-actions] {
+  display: none !important;
+}
+.force-mobile [data-mobile-actions] {
+  display: block !important;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
