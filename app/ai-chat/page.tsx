@@ -209,6 +209,80 @@ Summary: ${resumeData.summary || 'N/A'}`;
       });
     };
 
+    // Pass 0: context-driven extraction from Q&A pairs (assistant asks => user answers)
+    for (let i = 1; i < msgs.length; i++) {
+      const prev = msgs[i - 1];
+      const curr = msgs[i];
+      if (prev.role === 'assistant' && curr.role === 'user') {
+        const q = prev.content.toLowerCase();
+        const a = curr.content.trim();
+        // Location
+        if (/\b(location|mahali)\b/.test(q) && a && a.length > 2 && !a.includes('@') && !/\d/.test(a)) {
+          personal.location = a;
+        }
+        // Email
+        if (/\b(email|barua pepe)\b/.test(q)) {
+          const emailMatch = a.match(/[\w.-]+@[\w.-]+\.\w+/);
+          if (emailMatch) personal.email = emailMatch[0];
+        }
+        // Phone
+        if (/\b(phone|simu|nambari)\b/.test(q)) {
+          const phoneMatch = a.match(/\+?\d[\d\s-]{7,}/);
+          if (phoneMatch) personal.phone = phoneMatch[0];
+        }
+        // Company
+        if (/(company|kampuni)/.test(q) && a.length >= 2) {
+          if (!lastExperience) {
+            lastExperience = {
+              id: Date.now().toString()+Math.random(),
+              title: '', company: a, location: '', startDate: '', endDate: '', current: false, description: [],
+            };
+            experiences.push(lastExperience);
+          } else {
+            lastExperience.company = a;
+          }
+        }
+        // Job title
+        if (/(job title|title|cheo|kazi)/.test(q) && a.length >= 2) {
+          if (!lastExperience) {
+            lastExperience = {
+              id: Date.now().toString()+Math.random(),
+              title: a, company: '', location: '', startDate: '', endDate: '', current: false, description: [],
+            };
+            experiences.push(lastExperience);
+          } else {
+            lastExperience.title = a;
+          }
+        }
+        // Start/End dates
+        if (/(start|kuanzia|from)/.test(q)) {
+          if (!lastExperience) {
+            lastExperience = {
+              id: Date.now().toString()+Math.random(),
+              title: '', company: '', location: '', startDate: a, endDate: '', current: false, description: [],
+            };
+            experiences.push(lastExperience);
+          } else {
+            lastExperience.startDate = a;
+          }
+        }
+        if (/(end|hadi|to|mpaka)/.test(q)) {
+          if (!lastExperience) {
+            lastExperience = {
+              id: Date.now().toString()+Math.random(),
+              title: '', company: '', location: '', startDate: '', endDate: /sasa|present/i.test(a) ? '' : a,
+              current: /sasa|present/i.test(a), description: [],
+            };
+            experiences.push(lastExperience);
+          } else {
+            lastExperience.current = /sasa|present/i.test(a);
+            lastExperience.endDate = lastExperience.current ? '' : a;
+          }
+        }
+      }
+    }
+
+    // Pass 1: pattern-based extraction across all lines
     lines.forEach(l => {
       // Name detection
       if(!personal.fullName && /^(jina|name)\s*[:\-]/i.test(l)) {
@@ -222,9 +296,15 @@ Summary: ${resumeData.summary || 'N/A'}`;
       const phoneMatch = l.match(/\+?\d[\d\s-]{7,}/);
       if(phoneMatch) personal.phone = phoneMatch[0];
 
-      if(/(niko|mahali|location)\s*[:\-]/i.test(l)) {
+      if (/(niko|mahali|location)\s*[:\-]/i.test(l)) {
         const loc = l.split(/[:\-]/)[1]?.trim();
         if(loc && loc.length > 2) personal.location = loc;
+      }
+      // "Your location is Zanzibar" style
+      const locSentence = l.match(/\b(location|mahali)\b\s+(is|ni)\s+(.+)/i);
+      if (locSentence) {
+        const loc = locSentence[3].trim();
+        if (loc && loc.length > 2 && !/\d|@/.test(loc)) personal.location = loc;
       }
 
       if(/skills|ujuzi/i.test(l) && l.includes(':')) {
@@ -236,7 +316,7 @@ Summary: ${resumeData.summary || 'N/A'}`;
         });
       }
 
-      const experienceMatch = l.match(/(.+?)\s+at\s+(.+?)\s*\((\d{4}).?(\d{4}|Sasa|Now)?\)/i);
+      const experienceMatch = l.match(/(.+?)\s+at\s+(.+?)\s*\((\d{4}).?(\d{4}|Sasa|Now|Present)?\)/i);
       if(experienceMatch) {
         const [_, title, company, startY, endY] = experienceMatch;
         const exp: Experience = {
@@ -245,8 +325,8 @@ Summary: ${resumeData.summary || 'N/A'}`;
           company: company.trim(),
           location: '',
           startDate: startY,
-          endDate: endY && !/Sasa|Now/i.test(endY) ? endY : '',
-          current: /Sasa|Now/i.test(endY || ''),
+          endDate: endY && !/Sasa|Now|Present/i.test(endY) ? endY : '',
+          current: /Sasa|Now|Present/i.test(endY || ''),
           description: [],
         };
         experiences.push(exp);
@@ -330,6 +410,20 @@ Summary: ${resumeData.summary || 'N/A'}`;
           <FileUp className="h-4 w-4" />
           Jenga CV Kutoka Chat
         </Button>
+          <select
+            value={currentResume?.template || 'classic'}
+            onChange={(e)=> currentResume && setCurrentResume({ ...currentResume, template: e.target.value as Resume['template'] })}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            aria-label="Chagua Template"
+          >
+            <option value="classic">Classic</option>
+            <option value="modern">Modern</option>
+            <option value="compact">Compact</option>
+            <option value="professional">Professional</option>
+            <option value="ordered">Ordered</option>
+            <option value="elegant">Elegant</option>
+            <option value="glass">Glass</option>
+          </select>
         <Button
           onClick={() => {
             setMessages([{
