@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import Navigation from "@/components/navigation";
+import Particles from "@/components/visual/Particles";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -41,13 +42,15 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={inter.className}>
-        <div className="fixed inset-0 -z-10 pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-background" />
-          <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] blur-3xl opacity-40 bg-gradient-radial from-indigo-400/40 via-purple-400/30 to-transparent" />
-        </div>
+      <body className={`${inter.className} min-h-screen relative overflow-hidden text-slate-100 bg-animated-gradient`}>
+        {/* Skip to content link for accessibility */}
+        <a href="#main" className="skip-link">Ruka kwenye maudhui</a>
+        {/* Floating particles background */}
+        <Particles count={35} />
+        {/* Subtle vignette overlay */}
+        <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_center,transparent,rgba(0,0,0,0.6))]" />
         <Navigation />
-        <main className="min-h-screen">
+        <main id="main" className="min-h-screen">
           {children}
         </main>
         <Toaster />

@@ -1,159 +1,324 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import type { Resume, CoverLetter } from './types';
 
+type ResumeTemplate = Resume['template'];
+
+interface PDFTheme {
+  headerBg?: ReturnType<typeof rgb>;
+  headerTextColor: ReturnType<typeof rgb>;
+  bodyColor: ReturnType<typeof rgb>;
+  headingColor: ReturnType<typeof rgb>;
+  subheadingColor: ReturnType<typeof rgb>;
+  accentColor: ReturnType<typeof rgb>;
+}
+
+const templateThemes: Record<ResumeTemplate extends string ? ResumeTemplate : string, PDFTheme> = {
+  classic: {
+    headerTextColor: rgb(0, 0, 0),
+    bodyColor: rgb(0.1, 0.1, 0.1),
+    headingColor: rgb(0.05, 0.05, 0.4),
+    subheadingColor: rgb(0.35, 0.35, 0.35),
+    accentColor: rgb(0.1, 0.2, 0.5),
+  },
+  modern: {
+    headerBg: rgb(0.09, 0.18, 0.36),
+    headerTextColor: rgb(1, 1, 1),
+    bodyColor: rgb(0.1, 0.1, 0.12),
+    headingColor: rgb(0.24, 0.56, 0.98),
+    subheadingColor: rgb(0.6, 0.6, 0.68),
+    accentColor: rgb(0.24, 0.56, 0.98),
+  },
+  compact: {
+    headerBg: rgb(0.12, 0.19, 0.32),
+    headerTextColor: rgb(1, 1, 1),
+    bodyColor: rgb(0.1, 0.1, 0.1),
+    headingColor: rgb(0.18, 0.47, 0.87),
+    subheadingColor: rgb(0.45, 0.45, 0.5),
+    accentColor: rgb(0.18, 0.47, 0.87),
+  },
+  professional: {
+    headerBg: rgb(0.13, 0.16, 0.24),
+    headerTextColor: rgb(1, 1, 1),
+    bodyColor: rgb(0.08, 0.08, 0.1),
+    headingColor: rgb(0.9, 0.58, 0.1),
+    subheadingColor: rgb(0.55, 0.55, 0.6),
+    accentColor: rgb(0.9, 0.58, 0.1),
+  },
+  ordered: {
+    headerTextColor: rgb(0, 0, 0),
+    bodyColor: rgb(0.1, 0.1, 0.1),
+    headingColor: rgb(0.2, 0.2, 0.6),
+    subheadingColor: rgb(0.4, 0.4, 0.45),
+    accentColor: rgb(0.2, 0.2, 0.6),
+  },
+  elegant: {
+    headerBg: rgb(0.72, 0.23, 0.56),
+    headerTextColor: rgb(1, 1, 1),
+    bodyColor: rgb(0.08, 0.08, 0.09),
+    headingColor: rgb(0.52, 0, 0.45),
+    subheadingColor: rgb(0.35, 0.35, 0.42),
+    accentColor: rgb(0.95, 0.55, 0.75),
+  },
+  glass: {
+    headerBg: rgb(0.13, 0.24, 0.36),
+    headerTextColor: rgb(1, 1, 1),
+    bodyColor: rgb(0.08, 0.08, 0.1),
+    headingColor: rgb(0.33, 0.68, 0.99),
+    subheadingColor: rgb(0.5, 0.5, 0.55),
+    accentColor: rgb(0.45, 0.77, 0.98),
+  },
+};
+
+const defaultTheme: PDFTheme = {
+  headerTextColor: rgb(0, 0, 0),
+  bodyColor: rgb(0.1, 0.1, 0.1),
+  headingColor: rgb(0.1, 0.1, 0.1),
+  subheadingColor: rgb(0.35, 0.35, 0.35),
+  accentColor: rgb(0.1, 0.1, 0.1),
+};
+
 export async function generateResumePDF(
   resume: Resume,
-  template: '1-column' | '2-column' = '1-column',
-  includeWatermark: boolean = false
+  options: { layout?: '1-column' | '2-column'; template?: ResumeTemplate; includeWatermark?: boolean } = {}
 ): Promise<Blob> {
+  const { layout = '1-column', template = 'classic', includeWatermark = false } = options;
+  const theme = templateThemes[template] ?? defaultTheme;
+
   const pdfDoc = await PDFDocument.create();
-  // Preload fonts
-  const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
-  const timesRomanBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Page state helpers
-  let page = pdfDoc.addPage([595.276, 841.890]); // A4
+  let page = pdfDoc.addPage([595.276, 841.890]);
   let { width, height } = page.getSize();
-  let y = height - 50;
   const margin = 50;
   const lineHeight = 14;
-  const ensureSpace = (minSpace: number = 100) => {
-    if (y < minSpace) {
-      page = pdfDoc.addPage([595.276, 841.890]);
-      ({ width, height } = page.getSize());
-      y = height - 50;
-      // draw carry-over header line if needed later
-    }
-  };
-  
-  // Helper function to draw text
+  const bottomMargin = 60;
+
   const drawText = (text: string, x: number, yPos: number, options: any = {}) => {
     page.drawText(text, {
       x,
       y: yPos,
       size: options.size || 11,
       font: options.bold ? helveticaBold : helvetica,
-      color: options.color || rgb(0, 0, 0),
+      color: options.color || theme.bodyColor,
       maxWidth: options.maxWidth || (width - margin * 2),
     });
   };
-  
-  // Draw header
-  drawText(resume.personalInfo.fullName, margin, y, { size: 20, bold: true });
-  y -= 25;
-  
-  drawText(
-    `${resume.personalInfo.email} | ${resume.personalInfo.phone} | ${resume.personalInfo.location}`,
-    margin,
-    y,
-    { size: 9 }
-  );
-  y -= 20;
-  
-  if (resume.personalInfo.linkedin || resume.personalInfo.portfolio) {
-    const links = [resume.personalInfo.linkedin, resume.personalInfo.portfolio].filter(Boolean).join(' | ');
-    drawText(links, margin, y, { size: 9, color: rgb(0, 0, 0.8) });
-    y -= 25;
-  } else {
-    y -= 15;
-  }
-  
-  // Draw line
-  page.drawLine({
-    start: { x: margin, y: y },
-    end: { x: width - margin, y: y },
-    thickness: 1,
-    color: rgb(0.3, 0.3, 0.3),
-  });
-  y -= 20;
-  
-  // Summary
-  if (resume.summary) {
-    drawText('SUMMARY', margin, y, { size: 12, bold: true });
-    y -= lineHeight + 2;
-    
-    const summaryLines = wrapText(resume.summary, width - margin * 2, helvetica, 10);
-    summaryLines.forEach(line => {
-      drawText(line, margin, y, { size: 10 });
-      y -= lineHeight;
-    });
-    y -= 10;
-  }
-  
-  // Experience
-  if (resume.experience.length > 0) {
-    drawText('EXPERIENCE', margin, y, { size: 12, bold: true });
-    y -= lineHeight + 4;
-    
-    for (const exp of resume.experience) {
-      drawText(exp.title, margin, y, { size: 11, bold: true });
-      y -= lineHeight;
-      
+
+  const drawBannerHeader = () => {
+    let startY: number;
+    if (theme.headerBg) {
+      const headerHeight = 100;
+      page.drawRectangle({
+        x: 0,
+        y: height - headerHeight,
+        width,
+        height: headerHeight,
+        color: theme.headerBg,
+      });
+      drawText(resume.personalInfo.fullName || 'Unnamed Candidate', margin, height - 45, {
+        size: 22,
+        bold: true,
+        color: theme.headerTextColor,
+      });
       drawText(
-        `${exp.company} | ${exp.location} | ${exp.startDate} - ${exp.current ? 'Present' : exp.endDate}`,
+        `${resume.personalInfo.email || ''} ${resume.personalInfo.email && resume.personalInfo.phone ? '|' : ''} ${resume.personalInfo.phone || ''}`.trim(),
+        margin,
+        height - 62,
+        { size: 10, color: theme.headerTextColor }
+      );
+      drawText(
+        [resume.personalInfo.location, resume.personalInfo.linkedin, resume.personalInfo.portfolio]
+          .filter(Boolean)
+          .join(' • '),
+        margin,
+        height - 78,
+        { size: 10, color: theme.headerTextColor }
+      );
+      startY = height - headerHeight - 30;
+    } else {
+      startY = height - 50;
+      drawText(resume.personalInfo.fullName || 'Unnamed Candidate', margin, startY, { size: 20, bold: true });
+      startY -= 24;
+      drawText(
+        `${resume.personalInfo.email || ''} ${resume.personalInfo.email && resume.personalInfo.phone ? '|' : ''} ${resume.personalInfo.phone || ''}`.trim(),
+        margin,
+        startY,
+        { size: 10 }
+      );
+      startY -= 18;
+      const links = [resume.personalInfo.location, resume.personalInfo.linkedin, resume.personalInfo.portfolio]
+        .filter(Boolean)
+        .join(' • ');
+      if (links) {
+        drawText(links, margin, startY, { size: 10, color: theme.subheadingColor });
+        startY -= 18;
+      } else {
+        startY -= 12;
+      }
+      page.drawLine({
+        start: { x: margin, y: startY },
+        end: { x: width - margin, y: startY },
+        thickness: 1,
+        color: theme.subheadingColor,
+      });
+      startY -= 20;
+    }
+    return startY;
+  };
+
+  const addNewPage = () => {
+    page = pdfDoc.addPage([595.276, 841.890]);
+    ({ width, height } = page.getSize());
+    y = drawBannerHeader();
+  };
+
+  let y = drawBannerHeader();
+
+  const ensureSpace = (needed: number) => {
+    if (y - needed < bottomMargin) {
+      addNewPage();
+    }
+  };
+
+  const drawHeading = (title: string) => {
+    drawText(title.toUpperCase(), margin, y, { size: 12, bold: true, color: theme.headingColor });
+    y -= lineHeight + 2;
+  };
+
+  const drawExperience = () => {
+    if (!resume.experience.length) return;
+    drawHeading('Experience');
+    for (const exp of resume.experience) {
+      ensureSpace(90);
+      drawText(exp.title || 'Cheo', margin, y, { size: 11, bold: true });
+      y -= lineHeight;
+      drawText(
+        `${exp.company || ''} ${exp.company && exp.location ? '•' : ''} ${exp.location || ''} ${exp.startDate ? `• ${exp.startDate}` : ''} ${exp.endDate || exp.current ? `- ${exp.current ? 'Present' : exp.endDate}` : ''}`.trim(),
         margin,
         y,
-        { size: 9, color: rgb(0.3, 0.3, 0.3) }
+        { size: 9, color: theme.subheadingColor }
       );
-      y -= lineHeight + 2;
-      
-      exp.description.forEach(desc => {
+      y -= lineHeight;
+      exp.description.filter(Boolean).forEach(desc => {
         drawText(`• ${desc}`, margin + 10, y, { size: 10 });
         y -= lineHeight;
       });
-      y -= 8;
-      ensureSpace(120);
+      y -= 6;
     }
-  }
-  
-  // Skills
-  if (resume.skills.length > 0) {
-    ensureSpace(150);
-    
-    drawText('SKILLS', margin, y, { size: 12, bold: true });
-    y -= lineHeight + 2;
-    
-    const skillsByCategory: { [key: string]: string[] } = {};
+  };
+
+  const drawSummary = () => {
+    if (!resume.summary) return;
+    drawHeading('Summary');
+    const lines = wrapText(resume.summary, width - margin * 2, helvetica, 10);
+    lines.forEach(line => {
+      drawText(line, margin, y, { size: 10 });
+      y -= lineHeight;
+    });
+    y -= 6;
+  };
+
+  const drawSkills = () => {
+    if (!resume.skills.length) return;
+    ensureSpace(70);
+    drawHeading('Skills');
+    const skillsByCategory: Record<string, string[]> = {};
     resume.skills.forEach(skill => {
       const category = skill.category || 'General';
       if (!skillsByCategory[category]) skillsByCategory[category] = [];
-      skillsByCategory[category].push(`${skill.name} (${skill.level}/5)`);
+      skillsByCategory[category].push(skill.name);
     });
-    
     Object.entries(skillsByCategory).forEach(([category, skills]) => {
-      drawText(`${category}: ${skills.join(', ')}`, margin, y, { size: 10 });
+      drawText(`${category}: ${skills.join(', ')}`, margin, y, { size: 10, color: theme.bodyColor });
       y -= lineHeight;
     });
-    y -= 10;
-  }
-  
-  // Education
-  if (resume.education.length > 0) {
-    ensureSpace(120);
-    
-    drawText('EDUCATION', margin, y, { size: 12, bold: true });
-    y -= lineHeight + 4;
-    
+    y -= 6;
+  };
+
+  const drawEducation = () => {
+    if (!resume.education.length) return;
+    ensureSpace(80);
+    drawHeading('Education');
     resume.education.forEach(edu => {
-      drawText(edu.degree, margin, y, { size: 11, bold: true });
+      drawText(`${edu.degree || 'Shahada'} • ${edu.institution || ''}`.trim(), margin, y, { size: 11, bold: true });
       y -= lineHeight;
-      
       drawText(
-        `${edu.institution} | ${edu.location} | ${edu.startDate} - ${edu.current ? 'Present' : edu.endDate}`,
+        `${edu.location || ''} ${edu.startDate ? `• ${edu.startDate}` : ''} ${edu.current ? '- Present' : edu.endDate ? `- ${edu.endDate}` : ''}`.trim(),
         margin,
         y,
-        { size: 9, color: rgb(0.3, 0.3, 0.3) }
+        { size: 9, color: theme.subheadingColor }
       );
-      y -= lineHeight + 6;
+      y -= lineHeight + 4;
     });
+  };
+
+  const drawCertifications = () => {
+    if (!resume.certifications.length) return;
+    ensureSpace(70);
+    drawHeading('Certifications');
+    resume.certifications.forEach(cert => {
+      drawText(cert.name || 'Cheti', margin, y, { size: 10, bold: true });
+      y -= lineHeight;
+      drawText(`${cert.issuer || ''} ${cert.date ? `• ${cert.date}` : ''}`.trim(), margin, y, {
+        size: 9,
+        color: theme.subheadingColor,
+      });
+      y -= lineHeight;
+    });
+    y -= 6;
+  };
+
+  const drawLanguages = () => {
+    if (!resume.languages.length) return;
+    ensureSpace(60);
+    drawHeading('Languages');
+    resume.languages.forEach(lang => {
+      drawText(`${lang.name || ''} ${lang.proficiency ? `• ${lang.proficiency}` : ''}`.trim(), margin, y, { size: 10 });
+      y -= lineHeight;
+    });
+    y -= 6;
+  };
+
+  const drawInterests = () => {
+    if (!resume.interests.length) return;
+    ensureSpace(50);
+    drawHeading('Interests');
+    drawText(resume.interests.join(', '), margin, y, { size: 10 });
+    y -= lineHeight + 6;
+  };
+
+  const drawReferences = () => {
+    if (!resume.references) return;
+    ensureSpace(40);
+    drawHeading('References');
+    drawText(resume.references, margin, y, { size: 10 });
+    y -= lineHeight + 6;
+  };
+
+  if (layout === '2-column') {
+    // Render compact summary/skills first to emulate template styling
+    drawSummary();
+    drawSkills();
+    drawLanguages();
+    drawCertifications();
+    drawExperience();
+    drawEducation();
+    drawInterests();
+    drawReferences();
+  } else {
+    drawSummary();
+    drawExperience();
+    drawEducation();
+    drawSkills();
+    drawCertifications();
+    drawLanguages();
+    drawInterests();
+    drawReferences();
   }
-  
-  // Watermark
+
   if (includeWatermark) {
-    const pages = pdfDoc.getPages();
-    pages.forEach(pg => {
+    pdfDoc.getPages().forEach(pg => {
       pg.drawText('JobKit Pro', {
         x: 50,
         y: 30,
@@ -162,10 +327,8 @@ export async function generateResumePDF(
       });
     });
   }
-  
+
   const pdfBytes = await pdfDoc.save();
-  // Use ArrayBuffer to avoid TS BlobPart type issues
-  // Force copy into standard ArrayBuffer to avoid SharedArrayBuffer type issues
   const arrayBuffer = new ArrayBuffer(pdfBytes.length);
   const view = new Uint8Array(arrayBuffer);
   view.set(pdfBytes);

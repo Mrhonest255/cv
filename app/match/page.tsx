@@ -56,15 +56,15 @@ export default function MatchPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl animate-fadeIn">
-      <h1 className="text-3xl font-bold mb-2 gradient-title">Smart Job Match</h1>
-      <p className="text-muted-foreground mb-8">
+      <h1 className="text-2xl md:text-3xl font-bold mb-2 gradient-title">Smart Job Match</h1>
+      <p className="text-muted-foreground mb-6 md:mb-8">
         Pima ulinganifu wa CV yako na tangazo la kazi.
       </p>
 
-      <div className="grid lg:grid-cols-2 gap-8">
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
         {/* Input Section */}
         <div className="space-y-4">
-          <div className="card p-6">
+          <div className="card p-4 md:p-6">
             <h2 className="text-xl font-semibold mb-4">Taarifa za Kazi</h2>
 
             {resumes.length > 0 && (
@@ -137,7 +137,7 @@ export default function MatchPage() {
                 <div className="text-center">
                   <TrendingUp className={`h-12 w-12 mx-auto mb-2 ${getScoreColor(match.score)}`} />
                   <h3 className="text-2xl font-bold mb-1">Match Score</h3>
-                  <div className={`text-6xl font-bold ${getScoreColor(match.score)}`}>
+                  <div className={`text-5xl md:text-6xl font-bold ${getScoreColor(match.score)}`}>
                     {match.score}%
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
@@ -150,7 +150,7 @@ export default function MatchPage() {
 
               {/* Matched Keywords */}
               {match.matchedKeywords.length > 0 && (
-                <div className="card p-6 animate-fadeIn">
+                <div className="card p-4 md:p-6 animate-fadeIn">
                   <h3 className="font-semibold mb-3 flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-green-500" />
                     Keywords Unazofanana ({match.matchedKeywords.length})
@@ -170,7 +170,7 @@ export default function MatchPage() {
 
               {/* Missing Keywords */}
               {match.missingKeywords.length > 0 && (
-                <div className="card p-6 animate-fadeIn">
+                <div className="card p-4 md:p-6 animate-fadeIn">
                   <h3 className="font-semibold mb-3 flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 text-yellow-600" />
                     Keywords Zinazokosekana ({match.missingKeywords.length})

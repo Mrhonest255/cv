@@ -3,18 +3,18 @@ import { FileText, Mail, Target } from "lucide-react";
 
 export default function HomePage() {
   return (
-    <div className="container mx-auto px-4 py-16 animate-fadeIn">
+    <div className="container mx-auto px-4 py-12 md:py-16 animate-fadeIn">
       <div className="max-w-4xl mx-auto text-center">
-        <h1 className="text-5xl font-extrabold mb-6 gradient-title tracking-tight">
+        <h1 className="text-3xl md:text-5xl font-extrabold mb-4 md:mb-6 gradient-title tracking-tight">
           JobKit Pro
         </h1>
-        <p className="text-xl text-muted-foreground mb-12">
+        <p className="text-base md:text-xl text-muted-foreground mb-8 md:mb-12">
           Jifunze kutengeneza CV na barua za maombi kwa kutumia AI – inatumia mtandao na bila mtandao!
         </p>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-16">
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-10 md:mb-16">
           <Link href="/resume" className="group">
-            <div className="p-8 rounded-xl border border-border hover:border-primary transition-all shadow-soft hover:shadow-glow bg-card">
+            <div className="p-6 md:p-8 rounded-xl border border-border hover:border-primary transition-all shadow-soft hover:shadow-glow bg-card">
               <FileText className="w-12 h-12 mx-auto mb-4 text-primary group-hover:scale-110 transition-transform" />
               <h2 className="text-2xl font-semibold mb-2">CV Builder</h2>
               <p className="text-muted-foreground">
@@ -44,9 +44,9 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div className="bg-blue-50 dark:bg-blue-950 rounded-xl p-8 border border-blue-200 dark:border-blue-800 shadow-soft">
+        <div className="bg-blue-50 dark:bg-blue-950 rounded-xl p-6 md:p-8 border border-blue-200 dark:border-blue-800 shadow-soft text-left">
           <h3 className="text-xl font-semibold mb-4">✨ Vipengele Muhimu</h3>
-          <ul className="grid md:grid-cols-2 gap-3 text-left max-w-2xl mx-auto">
+          <ul className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
             <li className="flex items-center gap-2">
               <span className="text-green-600">✓</span>
               <span>Inatumia bila mtandao (PWA)</span>

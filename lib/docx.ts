@@ -9,16 +9,38 @@ import {
 } from 'docx';
 import type { Resume, CoverLetter } from './types';
 
-export async function generateResumeDOCX(resume: Resume): Promise<Blob> {
+type ResumeTemplate = Resume['template'];
+
+const docxThemes: Record<ResumeTemplate extends string ? ResumeTemplate : string, { headingColor: string; accentColor: string; bodyColor: string }> = {
+  classic: { headingColor: '1F2937', accentColor: '2563EB', bodyColor: '111827' },
+  modern: { headingColor: '2563EB', accentColor: '3B82F6', bodyColor: '0F172A' },
+  compact: { headingColor: '1D4ED8', accentColor: '2563EB', bodyColor: '111827' },
+  professional: { headingColor: 'D97706', accentColor: 'F59E0B', bodyColor: '0B1120' },
+  ordered: { headingColor: '1E3A8A', accentColor: '3B82F6', bodyColor: '111827' },
+  elegant: { headingColor: 'C026D3', accentColor: 'DB2777', bodyColor: '1F172A' },
+  glass: { headingColor: '38BDF8', accentColor: '0EA5E9', bodyColor: '0F172A' },
+};
+
+const defaultDocxTheme = { headingColor: '1F2937', accentColor: '2563EB', bodyColor: '111827' };
+
+export async function generateResumeDOCX(resume: Resume, options: { template?: ResumeTemplate } = {}): Promise<Blob> {
+  const theme = docxThemes[options.template ?? 'classic'] ?? defaultDocxTheme;
   const sections: Paragraph[] = [];
   
   // Header
   sections.push(
     new Paragraph({
-      text: resume.personalInfo.fullName,
       heading: HeadingLevel.TITLE,
       alignment: AlignmentType.CENTER,
       spacing: { after: 100 },
+      children: [
+        new TextRun({
+          text: resume.personalInfo.fullName,
+          bold: true,
+          size: 56,
+          color: theme.headingColor,
+        }),
+      ],
     })
   );
   
@@ -30,6 +52,7 @@ export async function generateResumeDOCX(resume: Resume): Promise<Blob> {
         new TextRun({
           text: `${resume.personalInfo.email} | ${resume.personalInfo.phone} | ${resume.personalInfo.location}`,
           size: 20,
+          color: theme.bodyColor,
         }),
       ],
     })
@@ -42,44 +65,41 @@ export async function generateResumeDOCX(resume: Resume): Promise<Blob> {
         alignment: AlignmentType.CENTER,
         spacing: { after: 300 },
         children: [
-          new TextRun({ text: links, size: 20, color: '0000FF', underline: {} }),
+          new TextRun({ text: links, size: 20, color: theme.accentColor, underline: { type: UnderlineType.SINGLE } }),
         ],
       })
     );
   }
   
+  const headingParagraph = (title: string) => new Paragraph({
+    spacing: { before: 200, after: 100 },
+    children: [
+      new TextRun({ text: title.toUpperCase(), bold: true, size: 28, color: theme.headingColor }),
+    ],
+  });
+  
   // Summary
   if (resume.summary) {
+    sections.push(headingParagraph('Summary'));
     sections.push(
       new Paragraph({
-        text: 'SUMMARY',
-        heading: HeadingLevel.HEADING_1,
-        spacing: { before: 200, after: 100 },
-      })
-    );
-    sections.push(
-      new Paragraph({
-        text: resume.summary,
         spacing: { after: 300 },
+        children: [
+          new TextRun({ text: resume.summary, color: theme.bodyColor, size: 22 })
+        ],
       })
     );
   }
   
   // Experience
   if (resume.experience.length > 0) {
-    sections.push(
-      new Paragraph({
-        text: 'EXPERIENCE',
-        heading: HeadingLevel.HEADING_1,
-        spacing: { before: 200, after: 100 },
-      })
-    );
+    sections.push(headingParagraph('Experience'));
     
     resume.experience.forEach(exp => {
       sections.push(
         new Paragraph({
           children: [
-            new TextRun({ text: exp.title, bold: true, size: 24 }),
+            new TextRun({ text: exp.title, bold: true, size: 26, color: theme.bodyColor }),
           ],
           spacing: { after: 50 },
         })
@@ -92,6 +112,7 @@ export async function generateResumeDOCX(resume: Resume): Promise<Blob> {
               text: `${exp.company} | ${exp.location} | ${exp.startDate} - ${exp.current ? 'Present' : exp.endDate}`,
               italics: true,
               size: 20,
+              color: theme.accentColor,
             }),
           ],
           spacing: { after: 100 },
@@ -114,13 +135,7 @@ export async function generateResumeDOCX(resume: Resume): Promise<Blob> {
   
   // Skills
   if (resume.skills.length > 0) {
-    sections.push(
-      new Paragraph({
-        text: 'SKILLS',
-        heading: HeadingLevel.HEADING_1,
-        spacing: { before: 200, after: 100 },
-      })
-    );
+    sections.push(headingParagraph('Skills'));
     
     const skillsByCategory: { [key: string]: string[] } = {};
     resume.skills.forEach(skill => {
@@ -133,8 +148,8 @@ export async function generateResumeDOCX(resume: Resume): Promise<Blob> {
       sections.push(
         new Paragraph({
           children: [
-            new TextRun({ text: `${category}: `, bold: true }),
-            new TextRun({ text: skills.join(', ') }),
+            new TextRun({ text: `${category}: `, bold: true, color: theme.bodyColor }),
+            new TextRun({ text: skills.join(', '), color: theme.bodyColor }),
           ],
           spacing: { after: 100 },
         })
@@ -144,19 +159,13 @@ export async function generateResumeDOCX(resume: Resume): Promise<Blob> {
   
   // Education
   if (resume.education.length > 0) {
-    sections.push(
-      new Paragraph({
-        text: 'EDUCATION',
-        heading: HeadingLevel.HEADING_1,
-        spacing: { before: 200, after: 100 },
-      })
-    );
+    sections.push(headingParagraph('Education'));
     
     resume.education.forEach(edu => {
       sections.push(
         new Paragraph({
           children: [
-            new TextRun({ text: edu.degree, bold: true, size: 24 }),
+            new TextRun({ text: edu.degree, bold: true, size: 24, color: theme.bodyColor }),
           ],
           spacing: { after: 50 },
         })
@@ -169,6 +178,7 @@ export async function generateResumeDOCX(resume: Resume): Promise<Blob> {
               text: `${edu.institution} | ${edu.location} | ${edu.startDate} - ${edu.current ? 'Present' : edu.endDate}`,
               italics: true,
               size: 20,
+              color: theme.accentColor,
             }),
           ],
           spacing: { after: 200 },

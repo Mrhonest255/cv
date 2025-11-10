@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Bot, User, Loader2, Sparkles, FileText } from "lucide-react";
+import { Send, Bot, User, Loader2, Sparkles, FileText, FileUp } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
+import type { Education, Experience } from "@/lib/types";
 
 interface Message {
   role: "user" | "assistant";
@@ -101,7 +102,12 @@ Summary: ${resumeData.summary || 'N/A'}`;
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        let msg = `HTTP ${response.status}`;
+        try {
+          const err = await response.json();
+          if (err?.error) msg = err.error;
+        } catch {}
+        throw new Error(msg);
       }
 
       let data: any = null;
@@ -177,17 +183,133 @@ Summary: ${resumeData.summary || 'N/A'}`;
     }
   };
 
+  // Extract structured resume from chat messages (simple heuristic)
+  function extractResumeFromChat(msgs: Message[]) {
+    const resume = currentResume ? { ...currentResume } : null;
+    if(!resume) return null;
+
+    const text = msgs.map(m => m.content).join('\n');
+    const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
+
+    const personal = { ...resume.personalInfo };
+    const experiences: Experience[] = resume.experience.map(exp => ({ ...exp }));
+    const education: Education[] = resume.education.map(edu => ({ ...edu }));
+    const skills = [...resume.skills];
+    let lastExperience: Experience | null = experiences.length ? experiences[experiences.length - 1] : null;
+
+    const dedupeByKey = <T,>(items: T[], keyFn: (item: T) => string) => {
+      const seen = new Set<string>();
+      return items.filter(item => {
+        const key = keyFn(item);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+
+    lines.forEach(l => {
+      // Name detection
+      if(!personal.fullName && /^(jina|name)\s*[:\-]/i.test(l)) {
+        const name = l.split(/[:\-]/)[1]?.trim();
+        if(name && name.length > 2) personal.fullName = name;
+      }
+
+      const emailMatch = l.match(/[\w.-]+@[\w.-]+\.\w+/);
+      if(emailMatch) personal.email = emailMatch[0];
+
+      const phoneMatch = l.match(/\+?\d[\d\s-]{7,}/);
+      if(phoneMatch) personal.phone = phoneMatch[0];
+
+      if(/(niko|mahali|location)\s*[:\-]/i.test(l)) {
+        const loc = l.split(/[:\-]/)[1]?.trim();
+        if(loc && loc.length > 2) personal.location = loc;
+      }
+
+      if(/skills|ujuzi/i.test(l) && l.includes(':')) {
+        const skillList = l.split(':')[1].split(/,|;/).map(s=>s.trim()).filter(Boolean);
+        skillList.forEach(s => {
+          if(!skills.some(k => k.name.toLowerCase() === s.toLowerCase())) {
+            skills.push({ id: Date.now().toString() + Math.random(), name: s, level:3, category:'General' });
+          }
+        });
+      }
+
+      const experienceMatch = l.match(/(.+?)\s+at\s+(.+?)\s*\((\d{4}).?(\d{4}|Sasa|Now)?\)/i);
+      if(experienceMatch) {
+        const [_, title, company, startY, endY] = experienceMatch;
+        const exp: Experience = {
+          id: Date.now().toString()+Math.random(),
+          title: title.trim(),
+          company: company.trim(),
+          location: '',
+          startDate: startY,
+          endDate: endY && !/Sasa|Now/i.test(endY) ? endY : '',
+          current: /Sasa|Now/i.test(endY || ''),
+          description: [],
+        };
+        experiences.push(exp);
+        lastExperience = exp;
+        return;
+      }
+
+      const eduMatch = l.match(/(Bachelor|Master|Diploma|Shahada|Degree|Certificate)\s+([^,]+?)\s+(?:at|from)\s+([^,(]+)(?:[,\s]+)?(?:\((\d{4})\s*(?:-|hadi|to|mpaka)\s*(\d{4}|Sasa|Now)?\))?/i);
+      if(eduMatch) {
+        const [, degreeWord, field, institution, startY, endY] = eduMatch;
+        const edu: Education = {
+          id: Date.now().toString()+Math.random(),
+          degree: `${degreeWord} ${field}`.trim(),
+          institution: institution.trim(),
+          location: '',
+          startDate: startY || '',
+          endDate: endY && !/Sasa|Now/i.test(endY) ? endY : '',
+          current: endY ? /Sasa|Now/i.test(endY) : false,
+          gpa: '',
+        };
+        education.push(edu);
+        return;
+      }
+
+      if(/^[-•]/.test(l) && lastExperience) {
+        const clean = l.replace(/^[-•\s]+/, '').trim();
+        if(clean) {
+          lastExperience.description = [...(lastExperience.description || []), clean];
+        }
+        return;
+      }
+
+      if(!resume.summary && /(muhtasari|summary)\s*[:\-]/i.test(l)) {
+        const summary = l.split(/[:\-]/)[1]?.trim();
+        if(summary && summary.length > 30) resume.summary = summary;
+      }
+    });
+
+    resume.personalInfo = personal;
+    resume.experience = dedupeByKey(experiences, exp => `${exp.title}|${exp.company}|${exp.startDate}`);
+    resume.education = dedupeByKey(education, edu => `${edu.degree}|${edu.institution}|${edu.startDate}`);
+    resume.skills = skills;
+    return resume;
+  }
+
+  const handleAutoCompile = () => {
+    const compiled = extractResumeFromChat(messages);
+    if(!compiled){
+      return;
+    }
+    setCurrentResume(compiled);
+  };
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl animate-fadeIn">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold gradient-title mb-2">
+          <h1 className="text-2xl md:text-3xl font-bold gradient-title mb-2">
             AI CV Chat
           </h1>
           <p className="text-muted-foreground">
             Jenga CV yako kwa mazungumzo na AI
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
         <Button
           onClick={() => router.push("/resume")}
           variant="outline"
@@ -195,6 +317,15 @@ Summary: ${resumeData.summary || 'N/A'}`;
         >
           <FileText className="h-4 w-4" />
           Nenda CV Builder
+        </Button>
+        <Button
+          onClick={handleAutoCompile}
+          variant="outline"
+          className="gap-2"
+          disabled={!currentResume}
+        >
+          <FileUp className="h-4 w-4" />
+          Jenga CV Kutoka Chat
         </Button>
         <Button
           onClick={() => {
@@ -209,11 +340,12 @@ Summary: ${resumeData.summary || 'N/A'}`;
         >
           Anza Upya
         </Button>
+        </div>
       </div>
 
       <div className="card p-0 overflow-hidden">
         {/* Messages area */}
-        <div className="h-[500px] overflow-y-auto p-6 space-y-4">
+  <div className="h-[60vh] md:h-[500px] overflow-y-auto p-4 md:p-6 space-y-4">
           {messages.map((msg, idx) => (
             <div
               key={idx}
@@ -260,7 +392,7 @@ Summary: ${resumeData.summary || 'N/A'}`;
         </div>
 
         {/* Input area */}
-        <div className="border-t bg-muted/30 p-4">
+        <div className="border-t bg-muted/30 p-3 md:p-4">
           <div className="flex gap-2">
             <Input
               value={input}

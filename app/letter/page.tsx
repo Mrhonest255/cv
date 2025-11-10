@@ -58,65 +58,58 @@ export default function LetterPage() {
           summary: currentResume.summary,
           skills: currentResume.skills,
           experience: currentResume.experience,
-          education: currentResume.education,
         },
         tone,
         lang: language,
         model,
-        keywords: keywords.split(",").map((k) => k.trim()).filter(Boolean),
+        keywords: keywords.split(',').map(k=>k.trim()).filter(Boolean)
       };
-
-      const response = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Imeshindwa kutengeneza barua");
+      if(!res.ok){
+        const msg = await res.json().catch(()=>({error:'Server error'}));
+        throw new Error(msg.error || `HTTP ${res.status}`);
       }
-
-      const content = await response.json();
-
-      const newLetter: CoverLetter = {
-        id: currentLetter?.id || Date.now().toString(),
-        createdAt: currentLetter?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      const data = await res.json();
+      const now = new Date().toISOString();
+      const letter: CoverLetter = {
+        id: Date.now().toString(),
+        createdAt: now,
+        updatedAt: now,
         jobTitle,
         company,
         jobDescription,
         tone,
         language,
         keywords: request.keywords,
-        content,
+        content: {
+          greeting: data.greeting || (language==='sw' ? 'Ndugu Mheshimiwa,' : 'Dear Hiring Manager,'),
+          intro: data.intro || '',
+          body_paragraphs: Array.isArray(data.body_paragraphs) ? data.body_paragraphs : [],
+          closing: data.closing || '',
+          signature: data.signature || (language==='sw' ? 'Wako Mwaminifu,' : 'Sincerely,'),
+          tone: data.tone || tone,
+          target_keywords: Array.isArray(data.target_keywords) ? data.target_keywords : [],
+        },
         resumeId: currentResume.id,
       };
-
-      setCurrentLetter(newLetter);
+      setCurrentLetter(letter);
       await saveCurrentLetter();
-
-      toast({
-        title: "Imekamilika!",
-        description: "Barua yako imetengenezwa kikamilifu",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Hitilafu",
-        description: error.message || "Imeshindwa kutengeneza barua",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGenerating(false);
+      toast({ title: 'Imefanikiwa', description: 'Barua ya maombi imetengenezwa' });
+    } catch (error:any) {
+      toast({ title: 'Kosa', description: error.message || 'Imeshindwa kutengeneza barua', variant: 'destructive' });
     }
+    finally { setIsGenerating(false); }
   };
 
   const handleExportPDF = async () => {
     if (!currentLetter || !currentResume) {
-      toast({ title: "Kosa", description: "Hakuna barua ya ku-export", variant: "destructive" });
+      toast({ title: 'Kosa', description: 'Hakuna barua ya ku-export', variant: 'destructive' });
       return;
     }
-
     try {
       const personalInfo = {
         fullName: fullName || currentResume.personalInfo.fullName,
@@ -125,11 +118,11 @@ export default function LetterPage() {
         location: location || currentResume.personalInfo.location,
       };
       const blob = await generateCoverLetterPDF(currentLetter, personalInfo, false);
-      const filename = generateFilename("letter", currentResume.personalInfo.fullName, "pdf", jobTitle);
+      const filename = generateFilename('letter', currentResume.personalInfo.fullName, 'pdf', jobTitle);
       downloadPDF(blob, filename);
-      toast({ title: "Imefanikiwa!", description: "Barua imepakiwa kwa PDF" });
+      toast({ title: 'Imefanikiwa!', description: 'Barua imepakiwa kwa PDF' });
     } catch (error) {
-      toast({ title: "Kosa", description: "Imeshindwa kupakua PDF", variant: "destructive" });
+      toast({ title: 'Kosa', description: 'Imeshindwa kupakua PDF', variant: 'destructive' });
     }
   };
 

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
-import { Plus, Trash2, Download, Save, Eye } from "lucide-react";
+import { Plus, Trash2, Download, Save, Eye, Loader2, Wand2, ArrowUp, ArrowDown, MoreHorizontal } from "lucide-react";
 import dynamic from "next/dynamic";
 const ResumePreview = dynamic(() => import("@/components/preview/ResumePreview"), { ssr: false });
 import { generateResumePDF, downloadPDF } from "@/lib/pdf";
@@ -18,7 +18,11 @@ import type { Experience, Education, Skill, Certification, Language, Resume } fr
 export default function ResumePage() {
   const { currentResume, setCurrentResume, saveCurrentResume, createNewResume, loadAllResumes, resumes } = useAppStore();
   const [autoSaveTimer, setAutoSaveTimer] = useState<NodeJS.Timeout | null>(null);
+  const [draftTimer, setDraftTimer] = useState<NodeJS.Timeout | null>(null);
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+  const [exporting, setExporting] = useState<{ pdf: boolean; docx: boolean }>({ pdf: false, docx: false });
+  const [aiLoading, setAiLoading] = useState<{ summary: boolean }>({ summary: false });
+  const DRAFT_KEY_PREFIX = 'resume_draft_';
 
   useEffect(() => {
     loadAllResumes();
@@ -56,6 +60,39 @@ export default function ResumePage() {
       if (timer) clearTimeout(timer);
     };
   }, [currentResume]);
+
+  // Persist a local draft quickly so data survives unexpected refreshes
+  useEffect(() => {
+    if (!currentResume) return;
+    if (draftTimer) clearTimeout(draftTimer);
+    const t = setTimeout(() => {
+      try {
+        const key = `${DRAFT_KEY_PREFIX}${currentResume.id}`;
+        localStorage.setItem(key, JSON.stringify(currentResume));
+      } catch {}
+    }, 500);
+    setDraftTimer(t);
+    return () => { if (t) clearTimeout(t); };
+  }, [currentResume]);
+
+  // On first time we have a current resume, try to restore newer local draft (if any)
+  useEffect(() => {
+    if (!currentResume) return;
+    try {
+      const key = `${DRAFT_KEY_PREFIX}${currentResume.id}`;
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const draft = JSON.parse(raw) as Resume;
+        const draftTime = new Date(draft.updatedAt || 0).getTime();
+        const currTime = new Date(currentResume.updatedAt || 0).getTime();
+        if (draftTime && (!currTime || draftTime > currTime)) {
+          setCurrentResume(draft);
+        }
+      }
+    } catch {}
+  // run only when a different resume is set
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentResume?.id]);
 
   if (!currentResume) {
     return (
@@ -232,24 +269,33 @@ export default function ResumePage() {
 
   const handleExportPDF = async () => {
     try {
-      const blob = await generateResumePDF(currentResume, "1-column", false);
+      setExporting(p=>({...p,pdf:true}));
+      const layout = templateToExportLayout(currentResume.template);
+      const blob = await generateResumePDF(currentResume, {
+        layout,
+        template: currentResume.template,
+        includeWatermark: false,
+      });
       const filename = generateFilename("resume", currentResume.personalInfo.fullName, "pdf");
       downloadPDF(blob, filename);
-      toast({ title: "Imefanikiwa!", description: "CV imepakiwa kwa PDF" });
-    } catch (error) {
-      toast({ title: "Kosa", description: "Imeshindwa kupakua PDF", variant: "destructive" });
-    }
+      toast({ title: "Imefanikiwa!", description: "CV imepakuliwa kama PDF" });
+    } catch (error:any) {
+      console.error(error);
+      toast({ title: "Kosa", description: error.message || "Imeshindwa kupakua PDF", variant: "destructive" });
+    } finally { setExporting(p=>({...p,pdf:false})); }
   };
 
   const handleExportDOCX = async () => {
     try {
-      const blob = await generateResumeDOCX(currentResume);
+      setExporting(p=>({...p,docx:true}));
+  const blob = await generateResumeDOCX(currentResume, { template: currentResume.template });
       const filename = generateFilename("resume", currentResume.personalInfo.fullName, "docx");
       downloadDOCX(blob, filename);
-      toast({ title: "Imefanikiwa!", description: "CV imepakiwa kwa DOCX" });
-    } catch (error) {
-      toast({ title: "Kosa", description: "Imeshindwa kupakua DOCX", variant: "destructive" });
-    }
+      toast({ title: "Imefanikiwa!", description: "CV imepakuliwa kama DOCX" });
+    } catch (error:any) {
+      console.error(error);
+      toast({ title: "Kosa", description: error.message || "Imeshindwa kupakua DOCX", variant: "destructive" });
+    } finally { setExporting(p=>({...p,docx:false})); }
   };
 
   const handleSave = async () => {
@@ -257,29 +303,89 @@ export default function ResumePage() {
     toast({ title: "Imehifadhiwa!", description: "CV yako imehifadhiwa kikamilifu" });
   };
 
+  function templateToExportLayout(t?: Resume['template']): '1-column' | '2-column' {
+    if(!t) return '1-column';
+    return ['modern','compact','glass'].includes(t) ? '2-column' : '1-column';
+  }
+
+  function buildResumeContext(resume: Resume): string {
+    const parts:string[]=[];
+    const p = resume.personalInfo;
+    parts.push(`Jina: ${p.fullName}`);
+    if(p.email) parts.push(`Email: ${p.email}`);
+    if(p.phone) parts.push(`Simu: ${p.phone}`);
+    if(p.location) parts.push(`Mahali: ${p.location}`);
+    if(resume.summary) parts.push(`Muhtasari: ${resume.summary}`);
+    if(resume.skills.length) parts.push(`Ujuzi: ${resume.skills.map(s=>s.name).join(', ')}`);
+    if(resume.experience.length){
+      parts.push('Uzoefu:');
+      resume.experience.forEach(e=>{
+        parts.push(`- ${e.title} @ ${e.company} (${e.startDate} - ${e.current ? 'Sasa' : e.endDate})`);
+        e.description.forEach(d=> parts.push(`  • ${d}`));
+      });
+    }
+    return parts.join('\n');
+  }
+
+  function moveSection(index:number, delta:number){
+    const resume = currentResume;
+    if(!resume) return;
+    const arr = [...resume.sectionOrder];
+    const target = index + delta;
+    if(target < 0 || target >= arr.length) return;
+    const [item] = arr.splice(index,1);
+    arr.splice(target,0,item);
+    setCurrentResume({ ...resume, sectionOrder: arr });
+  }
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Tengeneza CV Yako</h1>
-        <div className="flex gap-2">
-          <Button onClick={handleSave} variant="outline">
+  <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold">Tengeneza CV Yako</h1>
+        {/* Desktop actions */}
+        <div className="hidden sm:flex flex-wrap gap-2">
+          <Button onClick={handleSave} variant="outline" aria-label="Hifadhi CV">
             <Save className="h-4 w-4 mr-2" />
             Hifadhi
           </Button>
-          <Button onClick={handleExportPDF} variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            PDF
+          <Button onClick={handleExportPDF} variant="outline" disabled={exporting.pdf} aria-label="Pakua PDF">
+            {exporting.pdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Download className="h-4 w-4 mr-2" />}
+            {exporting.pdf ? 'Inatengeneza...' : 'PDF'}
           </Button>
-          <Button onClick={handleExportDOCX} variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            DOCX
+          <Button onClick={handleExportDOCX} variant="outline" disabled={exporting.docx} aria-label="Pakua DOCX">
+            {exporting.docx ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Download className="h-4 w-4 mr-2" />}
+            {exporting.docx ? 'Inatengeneza...' : 'DOCX'}
           </Button>
+        </div>
+        {/* Mobile consolidated actions */}
+        <div className="sm:hidden">
+          <details className="relative">
+            <summary className="list-none">
+              <Button variant="outline" className="gap-2" aria-haspopup="true" aria-expanded="false">
+                <MoreHorizontal className="h-4 w-4" />
+                Actions
+              </Button>
+            </summary>
+            <div className="absolute right-0 mt-2 w-48 rounded-md border border-border bg-background shadow-lg z-20 p-2 flex flex-col gap-2">
+              <Button onClick={handleSave} variant="ghost" className="justify-start" aria-label="Hifadhi CV">
+                <Save className="h-4 w-4 mr-2" /> Hifadhi
+              </Button>
+              <Button onClick={handleExportPDF} variant="ghost" disabled={exporting.pdf} className="justify-start" aria-label="Pakua PDF">
+                {exporting.pdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Download className="h-4 w-4 mr-2" />}
+                {exporting.pdf ? 'Inatengeneza...' : 'Pakua PDF'}
+              </Button>
+              <Button onClick={handleExportDOCX} variant="ghost" disabled={exporting.docx} className="justify-start" aria-label="Pakua DOCX">
+                {exporting.docx ? <Loader2 className="h-4 w-4 mr-2 animate-spin"/> : <Download className="h-4 w-4 mr-2" />}
+                {exporting.docx ? 'Inatengeneza...' : 'Pakua DOCX'}
+              </Button>
+            </div>
+          </details>
         </div>
       </div>
       {/* Main form + preview grid */}
-      <div className="grid lg:grid-cols-3 gap-8 mb-8">
+  <div className="grid lg:grid-cols-3 gap-8 mb-8">
         {/* Left: Form */}
-        <div className="lg:col-span-2 space-y-8">
+  <div className="lg:col-span-2 space-y-8">
 
   {/* Personal Info Section */}
       <div className="bg-card border rounded-lg p-6 mb-6 animate-fadeIn">
@@ -360,8 +466,23 @@ export default function ResumePage() {
       </div>
 
   {/* Summary Section */}
-      <div className="bg-card border rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Muhtasari (Summary)</h2>
+  <div className="bg-card border rounded-lg p-6 mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xl font-semibold">Muhtasari (Summary)</h2>
+          <Button size="sm" variant="outline" disabled={aiLoading.summary} className="gap-2"
+            onClick={async ()=>{
+              try{
+                setAiLoading(s=>({...s,summary:true}));
+                const text = buildResumeContext(currentResume);
+                const res = await fetch('/api/improve-text',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text, prompt: 'Andika muhtasari wa kitaalamu wenye sentensi 3-4 unaoonyesha mafanikio na ujuzi muhimu wa mwombaji kwa Kiswahili.'})});
+                const data = await res.json();
+                if(data?.improvedText){ setCurrentResume({...currentResume, summary: data.improvedText.trim()}); toast({title:'Imekamilika', description:'Muhtasari umetengenezwa na AI'}); } else throw new Error('Hakuna majibu ya AI');
+              }catch(e:any){ console.error(e); toast({title:'Kosa', description:e.message || 'Imeshindwa kutengeneza muhtasari', variant:'destructive'});} finally { setAiLoading(s=>({...s,summary:false})); }
+            }}>
+            {aiLoading.summary ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wand2 className="h-4 w-4"/>}
+            {aiLoading.summary ? 'Inatengeneza...' : 'AI Muhtasari'}
+          </Button>
+        </div>
         <Textarea
           value={currentResume.summary}
           onChange={(e) => setCurrentResume({ ...currentResume, summary: e.target.value })}
@@ -371,7 +492,7 @@ export default function ResumePage() {
       </div>
 
   {/* Experience Section */}
-      <div className="bg-card border rounded-lg p-6 mb-6">
+  <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Uzoefu wa Kazi</h2>
           <Button onClick={handleAddExperience} size="sm">
@@ -447,7 +568,19 @@ export default function ResumePage() {
               </label>
             </div>
             <div className="mt-3">
-              <Label>Maelezo ya Kazi</Label>
+              <div className="flex items-center justify-between">
+                <Label>Maelezo ya Kazi</Label>
+                <Button size="sm" variant="outline" onClick={async ()=>{
+                  try{
+                    const raw = exp.description.join('\n');
+                    const res = await fetch('/api/improve-text',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: raw, prompt: 'Badilisha haya kuwa pointi 4-6 za CV zenye nguvu (vitenzi vya hatua, matokeo yanayopimika) kwa Kiswahili. Rudisha pointi kwa mistari tofauti.'})});
+                    const data = await res.json();
+                    const bullets = (data?.improvedText||'').split('\n').map((s:string)=>s.replace(/^[-•\s]+/,'').trim()).filter(Boolean);
+                    handleExperienceChange(exp.id,'description', bullets);
+                    toast({title:'Imekamilika', description:'Bullets zimeboreshwa'});
+                  }catch(e:any){ console.error(e); toast({title:'Kosa', description:e.message||'Imeshindwa kuboresha bullets', variant:'destructive'}); }
+                }}>Boreshwa na AI</Button>
+              </div>
               <Textarea
                 value={exp.description.join("\n")}
                 onChange={(e) =>
@@ -462,7 +595,7 @@ export default function ResumePage() {
       </div>
 
   {/* Education Section */}
-      <div className="bg-card border rounded-lg p-6 mb-6">
+  <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Elimu</h2>
           <Button onClick={handleAddEducation} size="sm">
@@ -542,7 +675,7 @@ export default function ResumePage() {
       </div>
 
   {/* Skills Section */}
-      <div className="bg-card border rounded-lg p-6 mb-6">
+  <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Ujuzi (Skills)</h2>
           <Button onClick={handleAddSkill} size="sm">
@@ -588,7 +721,7 @@ export default function ResumePage() {
       </div>
 
   {/* Certifications */}
-      <div className="bg-card border rounded-lg p-6 mb-6">
+  <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Vyeti (Certifications)</h2>
           <Button onClick={handleAddCertification} size="sm">
@@ -635,7 +768,7 @@ export default function ResumePage() {
       </div>
 
   {/* Languages */}
-      <div className="bg-card border rounded-lg p-6 mb-6">
+  <div className="bg-card border rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Lugha (Languages)</h2>
           <Button onClick={handleAddLanguage} size="sm">Ongeza Lugha</Button>
@@ -662,7 +795,7 @@ export default function ResumePage() {
       </div>
 
   {/* Interests */}
-      <div className="bg-card border rounded-lg p-6 mb-6">
+  <div className="bg-card border rounded-lg p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Maslahi (Interests)</h2>
         <Textarea
           value={currentResume.interests.join("\n")}
@@ -686,7 +819,7 @@ export default function ResumePage() {
         />
       </div>
 
-          <div className="flex justify-center gap-4 mt-8">
+          <div className="flex justify-center gap-4 mt-8 flex-wrap">
         <Button onClick={handleSave} size="lg">
           <Save className="h-5 w-5 mr-2" />
           Hifadhi CV
@@ -716,7 +849,22 @@ export default function ResumePage() {
                 <option value="professional">Professional</option>
                 <option value="ordered">Ordered</option>
                 <option value="elegant">Elegant</option>
+                <option value="glass">Glass</option>
               </select>
+            </div>
+            <div className="mb-4">
+              <Label>Mpangilio wa Sehemu</Label>
+              <ul className="mt-2 space-y-1">
+                {currentResume.sectionOrder.map((sec, i)=> (
+                  <li key={sec} className="flex items-center justify-between text-xs border rounded px-2 py-1 bg-muted/30">
+                    <span className="capitalize">{sec}</span>
+                    <span className="flex gap-1">
+                      <Button size="icon" variant="ghost" aria-label="Peleka juu" disabled={i===0} onClick={()=>moveSection(i,-1)}><ArrowUp className="h-4 w-4"/></Button>
+                      <Button size="icon" variant="ghost" aria-label="Peleka chini" disabled={i===currentResume.sectionOrder.length-1} onClick={()=>moveSection(i,1)}><ArrowDown className="h-4 w-4"/></Button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
             <div className="h-[520px] overflow-y-auto custom-scrollbar">
               <ResumePreview resume={currentResume as Resume} />

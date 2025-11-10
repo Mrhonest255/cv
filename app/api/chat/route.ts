@@ -1,7 +1,6 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { NextRequest, NextResponse } from 'next/server';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Simple in-memory rate limiting
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -71,13 +70,29 @@ export async function POST(req: NextRequest) {
       console.error('GEMINI_API_KEY is not set');
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
+    // Initialize per request to ensure fresh key and avoid empty constructor
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
     // Use gemini-2.5-flash as per Flutter reference (fastest, cheapest)
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-2.5-flash',
       generationConfig,
       safetySettings,
-      systemInstruction: `You are a professional CV/Resume building assistant. Your role is to help users create comprehensive, professional CVs through conversation.
+    });
+
+    // Build chat history ensuring it starts with a user message
+  const roles = Array.isArray(messages) ? messages.map((m: any) => m.role) : [];
+    const firstUserIndex = roles.findIndex((r: string) => r === 'user');
+  let historySource = firstUserIndex === -1 ? [] : messages.slice(firstUserIndex, -1);
+  // limit history to last 12 turns to avoid overlong prompts
+  if (historySource.length > 12) historySource = historySource.slice(-12);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[chat] incoming roles:', roles);
+      console.log('[chat] firstUserIndex:', firstUserIndex);
+      console.log('[chat] history roles:', historySource.map((m: any) => m.role));
+    }
+
+    const systemInstruction = `You are a professional CV/Resume building assistant. Your role is to help users create comprehensive, professional CVs through conversation.
 
 IMPORTANT GUIDELINES:
 - Ask focused questions one at a time to extract CV information
@@ -90,20 +105,10 @@ IMPORTANT GUIDELINES:
 - DO NOT generate full CV text; focus on collecting and refining individual sections
 - When a section is complete, confirm and move to the next
 
-Current CV context: ${context || 'Empty - starting fresh'}`,
-    });
-
-    // Build chat history ensuring it starts with a user message
-    const roles = Array.isArray(messages) ? messages.map((m: any) => m.role) : [];
-    const firstUserIndex = roles.findIndex((r: string) => r === 'user');
-    const historySource = firstUserIndex === -1 ? [] : messages.slice(firstUserIndex, -1);
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[chat] incoming roles:', roles);
-      console.log('[chat] firstUserIndex:', firstUserIndex);
-      console.log('[chat] history roles:', historySource.map((m: any) => m.role));
-    }
+Current CV context: ${context || 'Empty - starting fresh'}`;
 
     const chat = model.startChat({
+      systemInstruction,
       history: historySource.map((msg: any) => ({
         role: msg.role === 'user' ? 'user' : 'model',
         parts: [{ text: msg.content }],
@@ -115,7 +120,7 @@ Current CV context: ${context || 'Empty - starting fresh'}`,
     if (lastMessage.role !== 'user') {
       return NextResponse.json({ error: 'Last message must be from user' }, { status: 400 });
     }
-    const result = await chat.sendMessage(lastMessage.content);
+  const result = await chat.sendMessage(lastMessage.content);
     const response = result.response;
     const text = response.text();
 
@@ -133,7 +138,7 @@ Current CV context: ${context || 'Empty - starting fresh'}`,
     
     // More detailed error response
     const errorMessage = error?.message || 'Failed to process chat';
-    const statusCode = error?.status || 500;
+    const statusCode = typeof error?.status === 'number' ? error.status : 500;
     
     return NextResponse.json(
       { 
