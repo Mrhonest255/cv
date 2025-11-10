@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import Navigation from "@/components/navigation";
 import Particles from "@/components/visual/Particles";
+import ScrollToTop from "@/components/ScrollToTop";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -64,6 +65,7 @@ export default function RootLayout({
         <main id="main" className="min-h-screen">
           {children}
         </main>
+        <ScrollToTop />
         <Toaster />
       </body>
     </html>
