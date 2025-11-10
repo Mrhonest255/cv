@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Mail, Target } from "lucide-react";
+import { FileText, Mail, Target, MessageSquare } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -12,7 +12,7 @@ export default function HomePage() {
           Jifunze kutengeneza CV na barua za maombi kwa kutumia AI – inatumia mtandao na bila mtandao!
         </p>
 
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-10 md:mb-16">
+  <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-10 md:mb-16">
           <Link href="/resume" className="group">
             <div className="p-6 md:p-8 rounded-xl border border-border hover:border-primary transition-all shadow-soft hover:shadow-glow bg-card">
               <FileText className="w-12 h-12 mx-auto mb-4 text-primary group-hover:scale-110 transition-transform" />
@@ -39,6 +39,16 @@ export default function HomePage() {
               <h2 className="text-2xl font-semibold mb-2">Smart Job Match</h2>
               <p className="text-muted-foreground">
                 Angalia CV yako inalingana vipi na kazi unayotaka
+              </p>
+            </div>
+          </Link>
+
+          <Link href="/ai-chat" className="group">
+            <div className="p-8 rounded-xl border border-border hover:border-primary transition-all shadow-soft hover:shadow-glow bg-card">
+              <MessageSquare className="w-12 h-12 mx-auto mb-4 text-primary group-hover:scale-110 transition-transform" />
+              <h2 className="text-2xl font-semibold mb-2">AI Chat Builder</h2>
+              <p className="text-muted-foreground">
+                Jenga CV kwa mazungumzo na uone preview papo hapo
               </p>
             </div>
           </Link>

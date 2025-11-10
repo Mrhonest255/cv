@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Send, Bot, User, Loader2, Sparkles, FileText, FileUp } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
-import type { Education, Experience } from "@/lib/types";
+import type { Education, Experience, Resume } from "@/lib/types";
+import dynamic from "next/dynamic";
+const ResumePreview = dynamic(() => import("@/components/preview/ResumePreview"), { ssr: false });
 
 interface Message {
   role: "user" | "assistant";
@@ -298,8 +300,9 @@ Summary: ${resumeData.summary || 'N/A'}`;
     setCurrentResume(compiled);
   };
 
+  const compiledResume = extractResumeFromChat(messages) || currentResume;
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl animate-fadeIn">
+    <div className="container mx-auto px-4 py-8 max-w-7xl animate-fadeIn">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold gradient-title mb-2">
@@ -343,7 +346,9 @@ Summary: ${resumeData.summary || 'N/A'}`;
         </div>
       </div>
 
-      <div className="card p-0 overflow-hidden">
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* Chat column */}
+        <div className="lg:col-span-2 card p-0 overflow-hidden">
         {/* Messages area */}
   <div className="h-[60vh] md:h-[500px] overflow-y-auto p-4 md:p-6 space-y-4">
           {messages.map((msg, idx) => (
@@ -420,10 +425,21 @@ Summary: ${resumeData.summary || 'N/A'}`;
             Taarifa unazotoa zinasaidia kuboresha CV yako katika CV Builder
           </p>
         </div>
+        </div>
+        {/* Live preview column */}
+        <div className="space-y-4">
+          <div className="bg-card border rounded-lg p-4 sticky top-6">
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><FileText className="h-4 w-4"/>Live CV Preview</h2>
+            <p className="text-xs text-muted-foreground mb-2">Inasasishwa moja kwa moja kutokana na majibu ya mazungumzo. Bonyeza "Jenga CV Kutoka Chat" kuhifadhi.</p>
+            <div className="h-[520px] overflow-y-auto custom-scrollbar">
+              {compiledResume ? <ResumePreview resume={compiledResume as Resume} /> : <p className="text-xs">Hakuna data bado...</p>}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Quick actions */}
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-8 flex flex-wrap gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -447,6 +463,14 @@ Summary: ${resumeData.summary || 'N/A'}`;
           disabled={loading}
         >
           Skills Suggestions
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setInput("Ongeza elimu yangu: Bachelor of Science in Computer Science at UDSM (2019 - 2023)")}
+          disabled={loading}
+        >
+          Ongeza Elimu
         </Button>
       </div>
     </div>
