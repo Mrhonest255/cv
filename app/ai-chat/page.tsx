@@ -190,17 +190,38 @@ Summary: ${resumeData.summary || 'N/A'}`;
 
   // Extract structured resume from chat messages (simple heuristic)
   function extractResumeFromChat(msgs: Message[]) {
-    const resume = currentResume ? { ...currentResume } : null;
-    if(!resume) return null;
+    if (!currentResume) return null;
+    
+    // Start with a fresh copy but keep structural defaults
+    const resume: Resume = {
+      ...currentResume,
+      personalInfo: { 
+        fullName: '', 
+        email: '', 
+        phone: '', 
+        location: '', 
+        linkedin: currentResume.personalInfo.linkedin || '', 
+        portfolio: currentResume.personalInfo.portfolio || '' 
+      },
+      summary: '',
+      experience: [],
+      education: [],
+      skills: [],
+      projects: currentResume.projects || [],
+      certifications: currentResume.certifications || [],
+      languages: currentResume.languages || [],
+      interests: currentResume.interests || [],
+      references: currentResume.references || '',
+    };
 
     const text = msgs.map(m => m.content).join('\n');
     const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
 
     const personal = { ...resume.personalInfo };
-    const experiences: Experience[] = resume.experience.map(exp => ({ ...exp }));
-    const education: Education[] = resume.education.map(edu => ({ ...edu }));
-    const skills = [...resume.skills];
-    let lastExperience: Experience | null = experiences.length ? experiences[experiences.length - 1] : null;
+    const experiences: Experience[] = [];
+    const education: Education[] = [];
+    const skills: string[] = [];
+    let lastExperience: Experience | null = null;
 
     const dedupeByKey = <T,>(items: T[], keyFn: (item: T) => string) => {
       const seen = new Set<string>();
@@ -219,111 +240,156 @@ Summary: ${resumeData.summary || 'N/A'}`;
       if (prev.role === 'assistant' && curr.role === 'user') {
         const q = prev.content.toLowerCase();
         const a = curr.content.trim();
+        
+        // Name
+        if (/(full name|jina lako kamili|jina)/i.test(q) && a && a.length > 2 && !/@/.test(a) && !/\d/.test(a)) {
+          personal.fullName = a;
+        }
+        
         // Location
-        if (/\b(location|mahali)\b/.test(q) && a && a.length > 2 && !a.includes('@') && !/\d/.test(a)) {
+        if (/\b(location|mahali|unaishi|you live|wapi)\b/.test(q) && a && a.length > 2 && !a.includes('@') && !/^\d+$/.test(a)) {
           personal.location = a;
         }
+        
         // Email
         if (/\b(email|barua pepe)\b/.test(q)) {
           const emailMatch = a.match(/[\w.-]+@[\w.-]+\.\w+/);
           if (emailMatch) personal.email = emailMatch[0];
         }
+        
         // Phone
         if (/\b(phone|simu|nambari)\b/.test(q)) {
           const phoneMatch = a.match(/\+?\d[\d\s-]{7,}/);
           if (phoneMatch) personal.phone = phoneMatch[0];
         }
-        // Company
-        if (/(company|kampuni)/.test(q) && a.length >= 2) {
-          if (!lastExperience) {
-            lastExperience = {
-              id: Date.now().toString()+Math.random(),
-              title: '', company: a, location: '', startDate: '', endDate: '', current: false, description: [],
-            };
-            experiences.push(lastExperience);
-          } else {
-            lastExperience.company = a;
-          }
-        }
+        
         // Job title
-        if (/(job title|title|cheo|kazi)/.test(q) && a.length >= 2) {
+        if (/(job title|title|cheo|kazi|profession|career)/i.test(q) && a.length >= 2) {
           if (!lastExperience) {
             lastExperience = {
-              id: Date.now().toString()+Math.random(),
-              title: a, company: '', location: '', startDate: '', endDate: '', current: false, description: [],
+              id: Date.now().toString() + Math.random(),
+              title: a, 
+              company: '', 
+              location: '', 
+              startDate: '', 
+              endDate: '', 
+              current: false, 
+              description: [],
             };
             experiences.push(lastExperience);
           } else {
             lastExperience.title = a;
           }
         }
-        // Start/End dates
-        if (/(start|kuanzia|from)/.test(q)) {
+        
+        // Company
+        if (/(company|kampuni|organization|employer)/i.test(q) && a.length >= 2) {
           if (!lastExperience) {
             lastExperience = {
-              id: Date.now().toString()+Math.random(),
-              title: '', company: '', location: '', startDate: a, endDate: '', current: false, description: [],
+              id: Date.now().toString() + Math.random(),
+              title: '', 
+              company: a, 
+              location: '', 
+              startDate: '', 
+              endDate: '', 
+              current: false, 
+              description: [],
             };
             experiences.push(lastExperience);
           } else {
-            lastExperience.startDate = a;
+            lastExperience.company = a;
           }
         }
-        if (/(end|hadi|to|mpaka)/.test(q)) {
+        
+        // Years of experience / Start date
+        if (/(start|kuanzia|from|since|years)/i.test(q)) {
+          const yearMatch = a.match(/\d{4}/);
+          if (yearMatch) {
+            if (!lastExperience) {
+              lastExperience = {
+                id: Date.now().toString() + Math.random(),
+                title: '', 
+                company: '', 
+                location: '', 
+                startDate: yearMatch[0], 
+                endDate: '', 
+                current: false, 
+                description: [],
+              };
+              experiences.push(lastExperience);
+            } else {
+              lastExperience.startDate = yearMatch[0];
+            }
+          }
+        }
+        
+        // End date / current
+        if (/(end|hadi|to|mpaka|still working|current)/i.test(q)) {
           if (!lastExperience) {
             lastExperience = {
-              id: Date.now().toString()+Math.random(),
-              title: '', company: '', location: '', startDate: '', endDate: /sasa|present/i.test(a) ? '' : a,
-              current: /sasa|present/i.test(a), description: [],
+              id: Date.now().toString() + Math.random(),
+              title: '', 
+              company: '', 
+              location: '', 
+              startDate: '', 
+              endDate: /sasa|present|current|still/i.test(a) ? '' : a,
+              current: /sasa|present|current|still/i.test(a), 
+              description: [],
             };
             experiences.push(lastExperience);
           } else {
-            lastExperience.current = /sasa|present/i.test(a);
+            lastExperience.current = /sasa|present|current|still/i.test(a);
             lastExperience.endDate = lastExperience.current ? '' : a;
           }
+        }
+        
+        // Skills
+        if (/(skills|ujuzi|competencies)/i.test(q)) {
+          const skillList = a.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 1);
+          skills.push(...skillList);
         }
       }
     }
 
     // Pass 1: pattern-based extraction across all lines
     lines.forEach(l => {
-      // Name detection
-      if(!personal.fullName && /^(jina|name)\s*[:\-]/i.test(l)) {
+      // Name detection (if not already found)
+      if (!personal.fullName && /^(jina|name)\s*[:\-]/i.test(l)) {
         const name = l.split(/[:\-]/)[1]?.trim();
-        if(name && name.length > 2) personal.fullName = name;
+        if (name && name.length > 2) personal.fullName = name;
       }
 
+      // Email
       const emailMatch = l.match(/[\w.-]+@[\w.-]+\.\w+/);
-      if(emailMatch) personal.email = emailMatch[0];
+      if (emailMatch && !personal.email) personal.email = emailMatch[0];
 
+      // Phone
       const phoneMatch = l.match(/\+?\d[\d\s-]{7,}/);
-      if(phoneMatch) personal.phone = phoneMatch[0];
+      if (phoneMatch && !personal.phone) personal.phone = phoneMatch[0];
 
+      // Location sentence patterns
       if (/(niko|mahali|location)\s*[:\-]/i.test(l)) {
         const loc = l.split(/[:\-]/)[1]?.trim();
-        if(loc && loc.length > 2) personal.location = loc;
+        if (loc && loc.length > 2 && !personal.location) personal.location = loc;
       }
-      // "Your location is Zanzibar" style
       const locSentence = l.match(/\b(location|mahali)\b\s+(is|ni)\s+(.+)/i);
-      if (locSentence) {
+      if (locSentence && !personal.location) {
         const loc = locSentence[3].trim();
         if (loc && loc.length > 2 && !/\d|@/.test(loc)) personal.location = loc;
       }
 
-      if(/skills|ujuzi/i.test(l) && l.includes(':')) {
-        const skillList = l.split(':')[1].split(/,|;/).map(s=>s.trim()).filter(Boolean);
-        skillList.forEach(s => {
-          if(!skills.some(k => k.name.toLowerCase() === s.toLowerCase())) {
-            skills.push({ id: Date.now().toString() + Math.random(), name: s, level:3, category:'General' });
-          }
-        });
+      // Skills list
+      if (/skills|ujuzi/i.test(l) && l.includes(':')) {
+        const skillList = l.split(':')[1].split(/,|;/).map(s => s.trim()).filter(Boolean);
+        skills.push(...skillList);
       }
 
+      // Experience "Title at Company (YYYY-YYYY)"
       const experienceMatch = l.match(/(.+?)\s+at\s+(.+?)\s*\((\d{4}).?(\d{4}|Sasa|Now|Present)?\)/i);
-      if(experienceMatch) {
+      if (experienceMatch) {
         const [_, title, company, startY, endY] = experienceMatch;
         const exp: Experience = {
-          id: Date.now().toString()+Math.random(),
+          id: Date.now().toString() + Math.random(),
           title: title.trim(),
           company: company.trim(),
           location: '',
@@ -337,11 +403,12 @@ Summary: ${resumeData.summary || 'N/A'}`;
         return;
       }
 
+      // Education
       const eduMatch = l.match(/(Bachelor|Master|Diploma|Shahada|Degree|Certificate)\s+([^,]+?)\s+(?:at|from)\s+([^,(]+)(?:[,\s]+)?(?:\((\d{4})\s*(?:-|hadi|to|mpaka)\s*(\d{4}|Sasa|Now)?\))?/i);
-      if(eduMatch) {
+      if (eduMatch) {
         const [, degreeWord, field, institution, startY, endY] = eduMatch;
         const edu: Education = {
-          id: Date.now().toString()+Math.random(),
+          id: Date.now().toString() + Math.random(),
           degree: `${degreeWord} ${field}`.trim(),
           institution: institution.trim(),
           location: '',
@@ -354,24 +421,35 @@ Summary: ${resumeData.summary || 'N/A'}`;
         return;
       }
 
-      if(/^[-•]/.test(l) && lastExperience) {
-        const clean = l.replace(/^[-•\s]+/, '').trim();
-        if(clean) {
+      // Bullet points for last experience
+      if (/^[-•*]/.test(l) && lastExperience) {
+        const clean = l.replace(/^[-•*\s]+/, '').trim();
+        if (clean) {
           lastExperience.description = [...(lastExperience.description || []), clean];
         }
         return;
       }
 
-      if(!resume.summary && /(muhtasari|summary)\s*[:\-]/i.test(l)) {
+      // Summary
+      if (!resume.summary && /(muhtasari|summary)\s*[:\-]/i.test(l)) {
         const summary = l.split(/[:\-]/)[1]?.trim();
-        if(summary && summary.length > 30) resume.summary = summary;
+        if (summary && summary.length > 30) resume.summary = summary;
       }
     });
 
     resume.personalInfo = personal;
     resume.experience = dedupeByKey(experiences, exp => `${exp.title}|${exp.company}|${exp.startDate}`);
     resume.education = dedupeByKey(education, edu => `${edu.degree}|${edu.institution}|${edu.startDate}`);
-    resume.skills = skills;
+    resume.skills = dedupeByKey(
+      skills.map(name => ({ 
+        id: Date.now().toString() + Math.random(), 
+        name, 
+        level: 3, 
+        category: 'General' 
+      })),
+      skill => skill.name.toLowerCase()
+    );
+    
     return resume;
   }
 
